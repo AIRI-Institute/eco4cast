@@ -2,13 +2,15 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from weather_data_utils import get_points_over_country, get_multiple_historic_data, get_emission_data, average_emission_data
 from lightning.pytorch import LightningDataModule
+import numpy as np
 
 
 class WeatherCO2Dataset(Dataset):
     def __init__(self, features_data, target_data, datetime_data, lookback_window, predict_window) -> None:
         super().__init__()
-        self.features_data = features_data
-        self.target_data = target_data
+
+        self.features_data = torch.tensor(features_data.astype(np.float32))
+        self.target_data = torch.tensor(target_data.astype(np.float32))
         self.datetime_data = datetime_data
         self.lookback_window, self.predict_window = lookback_window, predict_window
 
@@ -16,12 +18,11 @@ class WeatherCO2Dataset(Dataset):
         assert len(target_data) == len(datetime_data)
 
     def __len__(self):
-        return len(self.features_data) - self.lookback_window - self.predict_window
+        return len(self.features_data) - self.lookback_window -  self.predict_window + 1
 
     def __getitem__(self, index):
-        features_history = self.features_data[index -
-                                              self.lookback_window: index]
-        target = self.target_data[index: index + self.predict_window]
+        features_history = self.features_data[index: index + self.lookback_window]
+        target = self.target_data[index + self.lookback_window: index + self.lookback_window + self.predict_window]
 
         return features_history, target, index
 

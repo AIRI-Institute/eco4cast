@@ -91,6 +91,8 @@ def get_emission_data(
     # return emission_dictionary
     dataframe = pd.DataFrame.from_dict(emission_dictionary['records'])
     dataframe = dataframe[dataframe['PriceArea'] == 'DK1']
+    dataframe = dataframe.drop(columns=['PriceArea'])
+
     return dataframe
 
 
@@ -288,10 +290,7 @@ def get_multiple_last_weather_data(points,
         includes co2 info in features of each point with shift of co2_emission_delta_days 
 
     Returns:
-        np.array: [timesteps_num, features_num, points_num]
-
-    # Example 1. (Denmark with 40 points from 31.01.2021 to 02.03.2023, include_weathercode=False, co2_emission_delta_days=None) returns array with shape (18264, 21, 40)
-    # Example 2. (Denmark with 40 points from 31.01.2021 to 02.03.2023, include_weathercode=True, co2_emission_delta_days=1) returns array with shape (18239, 50, 40)
+        np.array: [lookback_window, features_num, points_num]
     """
     # info from https://open-meteo.com/en/docs
     openmeteo_weathercodes = [0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57,

@@ -1,3 +1,4 @@
 *.pickle
 *.ipynb
 __pycache__
+*.pth
