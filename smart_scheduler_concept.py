@@ -42,11 +42,8 @@ from time import sleep
 class IntervalTrainer:
     """
     This class is help class for SmartSchedulerTrainer.
-    I think it should be similar to this class: https://huggingface.co/docs/transformers/main_classes/trainer
-    It's purpose to take training parameters and train model
+    It trains model during datetime intervals using BackgroundScheduler
     """
-
-    # TODO: some class and methohds descriptions
     def __init__(
         self,
         model: torch.nn.Module,
@@ -66,6 +63,7 @@ class IntervalTrainer:
         """
         val_step: int
             Every val_step training steps one will make validation
+            if None - validates model after training epoch
         metric_func: func
             This func returns either dict with metrics or just float number
         Other parameters are obvious and I won't describe it
@@ -96,7 +94,10 @@ class IntervalTrainer:
         self.last_epoch = 0
         self.has_states_to_load = False
 
-        self.__scheduler = BackgroundScheduler(misfire_grace_time=None)
+        self.__scheduler = BackgroundScheduler(
+            misfire_grace_time=None,
+            job_defaults={"misfire_grace_time": None},
+        )
         self.device = device
         self.val_loss = 0
         self.train_loss = 0
@@ -127,13 +128,14 @@ class IntervalTrainer:
         train_progress_bar = CustomStartProgressBar(
             len(self.train_dataloader), self.last_train_batch_idx, description="Train"
         )
-        # TODO : metric collection and
         if self.training_state == "train_val":
             self.__validate(end_time)
 
         for batch_id, batch in enumerate(self.train_dataloader):
             if datetime.datetime.now(datetime.timezone.utc) >= end_time:
                 self.shutting = True
+
+            if self.shutting:
                 self.last_train_batch_idx += batch_id
                 break
 
@@ -151,7 +153,10 @@ class IntervalTrainer:
 
             train_progress_bar()
 
-            if batch_id > 0 and batch_id % self.val_step == 0:
+            if (
+                self.last_train_batch_idx + batch_id > 0
+                and (self.last_train_batch_idx + batch_id) % self.val_step == 0
+            ):
                 self.training_state = "train_val"
                 self.__validate(end_time)
 
@@ -172,6 +177,9 @@ class IntervalTrainer:
 
         with torch.no_grad():
             for batch_id, batch in enumerate(self.val_dataloader):
+                if self.shutting:
+                    break
+
                 if datetime.datetime.now(datetime.timezone.utc) >= end_time:
                     self.shutting = True
                     self.last_val_batch_idx += batch_id
@@ -194,13 +202,13 @@ class IntervalTrainer:
                 if self.val_metric < self.best_val_metric:
                     self.best_val_metric = self.val_metric
                     torch.save(self.model.state_dict(), "best_model.pth")
-                    print(f"Saving new best model with metric {self.best_val_metric}")
+                    print("\n", f"Saving new best model with metric {self.best_val_metric}")
 
                 self.val_metric = 0
                 self.last_val_batch_idx = 0
                 self.training_state = "train"
 
-    def train_loop(self, end_time):
+    def __train_loop(self, end_time):
         self.__load_states()
 
         print(
@@ -223,7 +231,7 @@ class IntervalTrainer:
                 self.__save_states()
                 self.__free_memory()
                 self.shutting = False
-                print("Shutting training till next interval")
+                print("\n", "Shutting training till next interval")
                 break
 
             print(
@@ -235,6 +243,9 @@ class IntervalTrainer:
             self.val_loss = 0
             self.train_metric = 0
 
+        else:
+            self.last_epoch += 1
+
     def train(
         self,
         datetime_intervals=None,
@@ -244,7 +255,7 @@ class IntervalTrainer:
         If intervals == None, training process runs as usual.
         """
         if datetime_intervals is None:
-            self.train_loop(
+            self.__train_loop(
                 datetime.datetime(
                     year=2500, month=1, day=1, tzinfo=datetime.timezone.utc
                 )
@@ -252,26 +263,32 @@ class IntervalTrainer:
         else:
             self.__scheduler.start()
             for start_interval, end_interval in datetime_intervals:
-                # This logic schedules model training for all intervals at once.
-                # Maybe we should wait till the previous interval ends or is it okay?
+                if self.last_epoch >= self.epochs:
+                    break
 
                 print(f"Scheduling {start_interval} - {end_interval} job")
                 trigger = DateTrigger(run_date=start_interval)
-
-                # trigger = CronTrigger(start_date=start_interval, end_date=end_interval)
                 self.__scheduler.add_job(
-                    func=self.train_loop,
+                    func=self.__train_loop,
                     trigger=trigger,
                     args=[end_interval],
                     id=f"job",
                 )
 
-                waiting_till = end_interval + datetime.timedelta(seconds=10)
-                while datetime.datetime.now(datetime.timezone.utc) < waiting_till:
-                    sleep(1)
-
-                # self.__scheduler.remove_job(f"job")
-                # self.__scheduler.shutdown()
+                # 5 seconds for saving states
+                waiting_till = end_interval + datetime.timedelta(seconds=5)
+                try:
+                    while (
+                        datetime.datetime.now(datetime.timezone.utc) < waiting_till
+                        and self.last_epoch < self.epochs
+                    ):
+                        sleep(1)
+                except (KeyboardInterrupt, SystemExit):
+                    print("\n", "KeyboardInterrupt caught. Stopping scheduled jobs")
+                    self.__scheduler.remove_all_jobs()
+                    self.__scheduler.shutdown(wait=False)
+                    self.shutting = True
+                    break
 
 
 class SmartSchedulerTrainer:
@@ -305,7 +322,8 @@ class SmartSchedulerFunction:
         self.function = function
         self.interval_predictor = interval_predictor
         self.__scheduler = BackgroundScheduler(
-            timezone=str(tzlocal.get_localzone()), misfire_grace_time=None
+            misfire_grace_time=None,
+            job_defaults={"misfire_grace_time": None},
         )
 
     def predict_intervals(

@@ -41,9 +41,9 @@ transform = transforms.Compose(
 train_dataset = datasets.MNIST(
     "../data", train=True, download=True, transform=transform
 )
-# train_dataset = Subset(train_dataset, list(range(10000)))
+train_dataset = Subset(train_dataset, list(range(10000)))
 val_dataset = datasets.MNIST("../data", train=False, transform=transform)
-# val_dataset = Subset(val_dataset, list(range(5000)))
+val_dataset = Subset(val_dataset, list(range(5000)))
 
 loss = nn.CrossEntropyLoss()
 
@@ -60,18 +60,19 @@ trainer = IntervalTrainer(
     test_dataset=None,
     loss_function=loss,
     metric_func=metric_fun,
-    val_step=3500,
-    show_val_progressbar=True
+    val_step=700,
+    show_val_progressbar=True,
+    epochs=2
 )
 
 intervals = [
     (
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=5),
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=20),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=0),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=26),
     ),
     (
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=40),
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=100),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=35),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=160),
     ),
 ]
 
