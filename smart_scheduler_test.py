@@ -62,7 +62,7 @@ trainer = IntervalTrainer(
     metric_func=metric_fun,
     val_step=700,
     show_val_progressbar=True,
-    epochs=2
+    epochs=2,
 )
 
 intervals = [
@@ -76,7 +76,7 @@ intervals = [
     ),
 ]
 
-# trainer.train(None)
+
+# Can be used both ways
 trainer.train(intervals)
-
-
+# trainer.train(None)

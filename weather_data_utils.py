@@ -379,10 +379,10 @@ if __name__ == '__main__':
 
     assert datetimes.shape[0] == weather_points_dataset.shape[0]
 
-    if emission_df is None:
-        emission_df = get_emission_data(
-            year_start, month_start, day_start, year_end, month_end, day_end)
-        emission_df = average_emission_data(emission_df)
+    # if emission_df is None:
+    #     emission_df = get_emission_data(
+    #         year_start, month_start, day_start, year_end, month_end, day_end)
+    #     emission_df = average_emission_data(emission_df)
 
     print(emission_df.shape, weather_points_dataset.shape)
     assert emission_df.shape[0] == weather_points_dataset.shape[0]

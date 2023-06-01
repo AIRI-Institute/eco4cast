@@ -52,6 +52,9 @@ class ResumableRandomSampler(torch.utils.data.Sampler):
 
 # https://github.com/tqdm/tqdm/issues/73
 class CustomStartProgressBar :
+    '''
+    TQDM progressbar, that allows to define initial state and description
+    '''
     def __init__(self, total_blocks, init_blocks=0, description='') :
         self.total_blocks = total_blocks
         self._first = True

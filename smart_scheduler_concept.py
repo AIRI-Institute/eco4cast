@@ -44,6 +44,11 @@ class IntervalTrainer:
     This class is help class for SmartSchedulerTrainer.
     It trains model during datetime intervals using BackgroundScheduler
     """
+
+    # TODO : some usage of test dataset or delete it?
+    # __free_memory method
+    #
+
     def __init__(
         self,
         model: torch.nn.Module,
@@ -54,7 +59,7 @@ class IntervalTrainer:
         metric_func,
         optimizer: torch.optim.Optimizer = torch.optim.Adam,
         lr=1e-4,
-        epochs=100,
+        epochs=3,
         val_step=None,
         batch_size=8,
         device="cpu",
@@ -65,7 +70,7 @@ class IntervalTrainer:
             Every val_step training steps one will make validation
             if None - validates model after training epoch
         metric_func: func
-            This func returns either dict with metrics or just float number
+            This func returns float number to choose best model after validation
         Other parameters are obvious and I won't describe it
         """
 
@@ -95,15 +100,15 @@ class IntervalTrainer:
         self.has_states_to_load = False
 
         self.__scheduler = BackgroundScheduler(
-            misfire_grace_time=None,
-            job_defaults={"misfire_grace_time": None},
+            misfire_grace_time=3600,
+            job_defaults={"misfire_grace_time": 3600},
         )
         self.device = device
         self.val_loss = 0
         self.train_loss = 0
         self.train_metric = 0
         self.val_metric = 0
-        self.best_val_metric = 1e10
+        self.best_val_metric = 1e9
         self.show_val_progressbar = show_val_progressbar
 
     def __load_states(self):
@@ -202,7 +207,10 @@ class IntervalTrainer:
                 if self.val_metric < self.best_val_metric:
                     self.best_val_metric = self.val_metric
                     torch.save(self.model.state_dict(), "best_model.pth")
-                    print("\n", f"Saving new best model with metric {self.best_val_metric}")
+                    print(
+                        "\n",
+                        f"Saving new best model with metric {self.best_val_metric}",
+                    )
 
                 self.val_metric = 0
                 self.last_val_batch_idx = 0
@@ -306,19 +314,26 @@ class SmartSchedulerTrainer:
         self.interval_predictor = interval_predictor
         pass
 
-    def train(self):
+    def train(self, time_period=3, min_interval=1, max_emission_value=100.0):
         """
-        This func trains self.trainer
+        This func to start trainer on forecasted intervals by interval_predictor
+        Args:
+            time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
+            min_interval (int) : minimal training interval in hours
+            max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
         """
-        self.intervals = self.interval_predictor.predict_intervals(3, 1, 100)
+        self.intervals = self.interval_predictor.predict_intervals(
+            time_period=time_period,
+            min_interval=min_interval,
+            max_emission_value=max_emission_value,
+        )
         self.trainer.train(self.intervals)
-        pass
 
 
 class SmartSchedulerFunction:
     """ """
 
-    def __init__(self, function, interval_predictor):
+    def __init__(self, function, interval_predictor: IntervalPredictor):
         self.function = function
         self.interval_predictor = interval_predictor
         self.__scheduler = BackgroundScheduler(
@@ -327,19 +342,19 @@ class SmartSchedulerFunction:
         )
 
     def predict_intervals(
-        self,
-        time_period,
-        min_interval,
-        max_emission_value,
+        self, time_period=3, min_interval=1, max_emission_value=100.0
     ):
         """
         This function predicts intervals using model for predicting intervals(firstly, it needs to load weather and emission data).
         Returns intervals, saves intervals to the parameter self.intervals
+
+        Args:
+            time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
+            min_interval (int) : minimal training interval in hours
+            max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
         """
-        (
-            datetime_intervals,
-            relative_intervals,
-        ) = self.interval_predictor.predict_intervals(
+
+        datetime_intervals = self.interval_predictor.predict_intervals(
             time_period, min_interval, max_emission_value
         )
         self.intervals = datetime_intervals
@@ -351,21 +366,30 @@ class SmartSchedulerFunction:
         It starts function running.
         """
 
-        first_interval = self.intervals[0]
-
         self.__scheduler.start()
-        trigger = DateTrigger(run_date=first_interval[0])
-        # print(start_date, end_date)
-        self.__scheduler.add_job(
-            func=self.function,
-            trigger=trigger,
-            args=self.__args,
-            kwargs=self.__kwargs,
-            id="job",
-        )
+        for start_interval, end_interval in self.intervals:
+            print(f"Scheduling {start_interval} - {end_interval} job")
+            trigger = DateTrigger(run_date=start_interval)
+            self.__scheduler.add_job(
+                func=self.__train_loop,
+                trigger=trigger,
+                args=[end_interval],
+                id=f"job",
+            )
+
+            waiting_till = end_interval + datetime.timedelta(seconds=5)
+            try:
+                while datetime.datetime.now(datetime.timezone.utc) < waiting_till:
+                    sleep(1)
+            except (KeyboardInterrupt, SystemExit):
+                print("\n", "KeyboardInterrupt caught. Stopping scheduled jobs")
+                self.__scheduler.remove_all_jobs()
+                self.__scheduler.shutdown(wait=False)
+                break
 
     def stop(self):
         """
         This method stops running a function.
         """
-        pass
+        self.__scheduler.remove_all_jobs()
+        self.__scheduler.shutdown(wait=False)
