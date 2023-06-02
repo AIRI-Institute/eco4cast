@@ -53,28 +53,39 @@ class TCNModel(LightningModule):
 
         self.loss_module = nn.L1Loss()
 
-        # Has input as [batch_size, features_num, hours_num]
+        # Has input as [batch_size, features_num, time_steps_num]
         self.tcn = TemporalConvNet(**model_hparams)
+
+        self.downsample = nn.Conv1d(in_channels=96, out_channels=1, kernel_size=6)
+
         self.regressor = nn.Sequential(
             nn.Dropout(0.1),
-            nn.Linear(lookback_window, 1024),
+            nn.Linear(
+                (model_hparams["num_channels"][-1] - 5) * self.downsample.out_channels,
+                1024,
+            ),
+            nn.ReLU(),
             nn.Dropout(0.2),
             nn.Linear(1024, predict_window),
         )
 
         # [batch_size, lookback_window, features_per_point, points_num]
-        self.example_input_array = torch.ones(8, 96, 21, 40)
+        self.example_input_array = torch.ones(8, 96, 22, 40)
 
     def forward(self, x):
-        # out: [batch_size, features_num, lookback_window]
-        x = x.flatten(-2, -1).swapaxes(-2, -1)
-        x = self.tcn(x)  # out: [batch_size, 1, lookback_window]
-        x = x.squeeze(-2)  # out: [batch_size, lookback_window]
+        x = x.flatten(-2, -1).swapaxes(
+            -2, -1
+        )  # out: [batch_size, features_num, lookback_window]
+        x = self.tcn(x)  # out: [batch_size, num_channels[-1], lookback_window]
+        x = self.downsample(
+            x.swapaxes(-2, -1)
+        )  # out: [batch_size, num_channels[-1]-5, 1]
+        x = x.flatten(-2, -1)  # out: [batch_size, num_channels[-1] - 5]
         x = self.regressor(x)  # out: [batch_size, predict_window]
         return x
 
     def predict_step(self, batch, batch_idx):
-        x = batch
+        x, y, _ = batch
         preds = self.forward(x)
         return preds
 
@@ -83,14 +94,14 @@ class TCNModel(LightningModule):
         preds = self.forward(x)
         loss = self.loss_module(preds, y)
         self.log("train_loss", loss)
-        return {"train_loss": loss}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         x, y, idx = batch
         preds = self.forward(x)
         loss = self.loss_module(preds, y)
         self.log("val_loss", loss)
-        return {"val_loss": loss}
+        return {"loss": loss}
 
     def configure_optimizers(self):
         if self.hparams.optimizer_name == "Adam":
@@ -110,10 +121,14 @@ class TCNModel(LightningModule):
 
 
 if __name__ == "__main__":
+    # model = TemporalConvNet(880, [128], kernel_size=3)
+
+    # print(model(torch.ones(8, 880, 96)).shape)
+
     model = TCNModel(
         {
-            "num_inputs": 21 * 40,
-            "num_channels": [1024, 512, 256, 1],
+            "num_inputs": 22 * 40,
+            "num_channels": [1024, 512, 256, 128],
             "kernel_size": 3,
             "dropout": 0.2,
         },
@@ -123,4 +138,5 @@ if __name__ == "__main__":
         {"lr": 1e-3, "weight_decay": 1e-4},
     )
 
-    print(model(torch.ones(8, 96, 21, 40)).shape)
+    print(model(torch.ones(8, 96, 22, 40)).shape)
+    print(sum(p.numel() for p in model.parameters() if p.requires_grad))

@@ -8,20 +8,37 @@ from weather_data_utils import (
 )
 from lightning.pytorch import LightningDataModule
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 
 
 class WeatherCO2Dataset(Dataset):
-    # TODO : is it necessary to use MinMaxScaler?
-
     def __init__(
-        self, features_data, target_data, datetime_data, lookback_window, predict_window
+        self,
+        features_data,
+        target_data,
+        datetime_data,
+        lookback_window,
+        predict_window,
+        use_min_max_scaling=True,
     ) -> None:
         super().__init__()
+        # Shape : [time_steps_num, features_num, points_num]
+        self.datetime_data = datetime_data
+        self.lookback_window, self.predict_window = lookback_window, predict_window
+
+        if use_min_max_scaling:
+            self.features_scaler = MinMaxScaler()
+            features_data = self.features_scaler.fit_transform(
+                features_data.reshape(-1, features_data.shape[1])
+            ).reshape(features_data.shape)
+
+            self.target_scaler = MinMaxScaler()
+            target_data = self.target_scaler.fit_transform(
+                target_data.reshape(-1, 1)
+            ).squeeze()
 
         self.features_data = torch.tensor(features_data.astype(np.float32))
         self.target_data = torch.tensor(target_data.astype(np.float32))
-        self.datetime_data = datetime_data
-        self.lookback_window, self.predict_window = lookback_window, predict_window
 
         assert len(features_data) == len(target_data)
         assert len(target_data) == len(datetime_data)
@@ -95,7 +112,7 @@ class WeatherCO2DataModule(LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers
+            self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True
         )
 
     def val_dataloader(self):
@@ -110,30 +127,37 @@ class WeatherCO2DataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    denmark_points = get_points_over_country("DNK", 0.5)
-    assert len(denmark_points) == 40
+    # denmark_points = get_points_over_country("DNK", 0.5)
+    # assert len(denmark_points) == 40
 
-    year_start = "2023"
-    month_start = "01"
-    day_start = "31"
+    # year_start = "2021"
+    # month_start = "01"
+    # day_start = "31"
 
-    year_end = "2023"
-    month_end = "03"
-    day_end = "02"
+    # year_end = "2023"
+    # month_end = "05"
+    # day_end = "15"
 
-    weather_points_dataset, datetimes, emission_df = get_multiple_historic_data(
-        denmark_points,
-        year_start=year_start,
-        month_start=month_start,
-        day_start=day_start,
-        year_end=year_end,
-        month_end=month_end,
-        day_end=day_end,
-        include_weathercode=False,
-        co2_emission_delta_days=1,
-    )
+    # weather_points_dataset, datetimes, emission_df = get_multiple_historic_data(
+    #     denmark_points,
+    #     year_start=year_start,
+    #     month_start=month_start,
+    #     day_start=day_start,
+    #     year_end=year_end,
+    #     month_end=month_end,
+    #     day_end=day_end,
+    #     include_weathercode=False,
+    #     co2_emission_delta_days=1,
+    # )
 
-    emission_data = emission_df["CO2Emission"].to_numpy()
+    # emission_data = emission_df["CO2Emission"].to_numpy()
+
+    # np.save('emission_data_2021-2023_co2_shift_1.npy', emission_data)
+    # np.save('weather_data_2021-2023_co2_shift_1.npy', weather_points_dataset)
+
+    weather_points_dataset = np.load("weather_data_2021-2023.npy", allow_pickle=True)
+    emission_data = np.load("emission_data_2021-2023.npy", allow_pickle=True)
+    datetimes = list(range(len(emission_data)))
 
     dm = WeatherCO2DataModule(
         weather_points_dataset, emission_data, datetimes, 96, 24, 10, 16
@@ -141,6 +165,13 @@ if __name__ == "__main__":
 
     dm.setup("fit")
     dm.setup("test")
+
+    print(
+        dm.train_dataset[0][0].shape,
+        dm.train_dataset[0][1].shape,
+        dm.train_dataset[0][0].mean(),
+        dm.train_dataset[0][1].mean(),
+    )
 
     print("Full data: ", len(emission_data))
     print(
