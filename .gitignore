@@ -3,3 +3,6 @@
 __pycache__
 *.pth
 *.npy
+*.yml
+*.png
+*.csv

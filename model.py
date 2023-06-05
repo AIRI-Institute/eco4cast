@@ -4,7 +4,9 @@ from lightning.pytorch import LightningModule
 from torch import nn
 import torch.optim as optim
 import torch
-from tcn import TemporalConvNet
+from tcn_pytorch import TemporalConvNet
+from torchsummary import summary
+
 
 
 class ForecastingModel(nn.Module):
@@ -56,12 +58,12 @@ class TCNModel(LightningModule):
         # Has input as [batch_size, features_num, time_steps_num]
         self.tcn = TemporalConvNet(**model_hparams)
 
-        self.downsample = nn.Conv1d(in_channels=96, out_channels=1, kernel_size=6)
+        # self.downsample = nn.Conv1d(in_channels=96, out_channels=1, kernel_size=6)
 
         self.regressor = nn.Sequential(
             nn.Dropout(0.1),
             nn.Linear(
-                (model_hparams["num_channels"][-1] - 5) * self.downsample.out_channels,
+                model_hparams["num_channels"][-1] * 8,
                 1024,
             ),
             nn.ReLU(),
@@ -77,10 +79,8 @@ class TCNModel(LightningModule):
             -2, -1
         )  # out: [batch_size, features_num, lookback_window]
         x = self.tcn(x)  # out: [batch_size, num_channels[-1], lookback_window]
-        x = self.downsample(
-            x.swapaxes(-2, -1)
-        )  # out: [batch_size, num_channels[-1]-5, 1]
-        x = x.flatten(-2, -1)  # out: [batch_size, num_channels[-1] - 5]
+        x = x[:, :, -8:]  # out: [batch_size, num_channels[-1], 8]
+        x = x.flatten(-2, -1)  # out: [batch_size, num_channels[-1]]
         x = self.regressor(x)  # out: [batch_size, predict_window]
         return x
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     model = TCNModel(
         {
             "num_inputs": 22 * 40,
-            "num_channels": [1024, 512, 256, 128],
+            "num_channels": [124, 124, 124, 124],
             "kernel_size": 3,
             "dropout": 0.2,
         },
@@ -139,4 +139,18 @@ if __name__ == "__main__":
     )
 
     print(model(torch.ones(8, 96, 22, 40)).shape)
-    print(sum(p.numel() for p in model.parameters() if p.requires_grad))
+    print(sum(p.numel() for p in model.parameters() ))
+    print(summary(model, (96, 22, 40))) 
+
+    print(model)
+
+
+    def count_parameters(model):
+        total_params = 0
+        for name, parameter in model.named_parameters():
+            if not parameter.requires_grad: continue
+            params = parameter.numel()
+            total_params+=params
+        print(f"Total Trainable Params: {total_params}")
+        return total_params
+        
