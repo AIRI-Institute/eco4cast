@@ -3,6 +3,7 @@ from model import TCNModel
 import torch
 import numpy as np
 import datetime
+import joblib
 
 
 class IntervalPredictor:
@@ -13,7 +14,12 @@ class IntervalPredictor:
 
     # TODO : train model =) Now random weights are used
 
-    def __init__(self, country_code, points_step, checkpoint_file_path=None) -> None:
+    def __init__(
+        self,
+        country_code,
+        points_step,
+        checkpoint_file_path=None,
+    ) -> None:
         """
         Args:
             country_code (str) : ISO-3 coutry code
@@ -31,7 +37,7 @@ class IntervalPredictor:
         else:
             self.load_model(checkpoint_file_path=checkpoint_file_path)
 
-    def load_model(self, train=False, checkpoint_file_path="default_path.ckpt"):
+    def load_model(self, train=False, checkpoint_file_path="model.ckpt"):
         """
         This function loads model for predicting time intervals.
         train: bool
@@ -41,7 +47,7 @@ class IntervalPredictor:
         self.predict_model = TCNModel(
             {
                 "num_inputs": 22 * 40,
-                "num_channels": [1024, 512, 256, 1],
+                "num_channels": [512, 128],
                 "kernel_size": 3,
                 "dropout": 0.2,
             },
@@ -50,8 +56,13 @@ class IntervalPredictor:
             "Adam",
             {"lr": 1e-3, "weight_decay": 1e-4},
         )
-        # self.predict_model = self.predict_model.load_from_checkpoint(
-        #     checkpoint_file_path)
+        self.predict_model = self.predict_model.load_from_checkpoint(
+            checkpoint_file_path
+        )
+        self.predict_model = self.predict_model.to("cpu").eval()
+
+        self.features_scaler = joblib.load("features_scaler.gz")
+        self.target_scaler = joblib.load("target_scaler.gz")
 
     def predict_intervals(
         self,
@@ -74,15 +85,20 @@ class IntervalPredictor:
             self.lookback_window,
             co2_emission_delta_days=self.co2_emission_delta_days,
         )
-
         real_emission_data = emission_df["CO2Emission"].to_numpy()
+        weather_data = self.features_scaler.transform(
+            weather_data.reshape(-1, weather_data.shape[1])
+        ).reshape(weather_data.shape)
 
-        batch = torch.tensor(weather_data.astype(np.float32))
-        batch = batch.unsqueeze(0)
+        x = torch.tensor(weather_data.astype(np.float32))
+        x = x.unsqueeze(0)
+        batch = (x, 0, 0)  # x, y, idx
 
         self.emission_forecast = self.predict_model.predict_step(batch, 0)[0]
-
         self.emission_forecast = self.emission_forecast.detach().cpu().numpy()
+        self.emission_forecast = self.target_scaler.inverse_transform(
+            self.emission_forecast.reshape(-1, 1)
+        ).squeeze()
 
         # Extending with history datas
         if time_period > 0:
@@ -182,4 +198,6 @@ if __name__ == "__main__":
     datetime_intervals = predictor.predict_intervals(3, 1, 100)
 
     print(datetime_intervals)
-    print(predictor.emission_forecast.shape)  # equals 24 + time_period
+    print()
+    print("Forecast")
+    print(predictor.emission_forecast)  # shape: + time_period + 24 

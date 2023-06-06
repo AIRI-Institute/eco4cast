@@ -53,7 +53,7 @@ class TCNModel(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.loss_module = nn.L1Loss()
+        self.loss_module = nn.MSELoss()
 
         # Has input as [batch_size, features_num, time_steps_num]
         self.tcn = TemporalConvNet(**model_hparams)

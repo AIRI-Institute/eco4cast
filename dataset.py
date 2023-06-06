@@ -9,6 +9,7 @@ from weather_data_utils import (
 from lightning.pytorch import LightningDataModule
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+import joblib
 
 
 class WeatherCO2Dataset(Dataset):
@@ -112,7 +113,10 @@ class WeatherCO2DataModule(LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True
+            self.train_dataset,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=True,
         )
 
     def val_dataloader(self):
@@ -178,3 +182,6 @@ if __name__ == "__main__":
         "Total dataset samples: ",
         len(dm.train_dataset) + len(dm.val_dataset) + len(dm.test_dataset),
     )
+
+    joblib.dump(dm.train_dataset.features_scaler, 'features_scaler.gz')
+    joblib.dump(dm.train_dataset.target_scaler, 'target_scaler.gz')
