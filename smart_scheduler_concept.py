@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 from model import ForecastingModel
 import datetime
 from time import sleep
-
+from copy import deepcopy
+import gc
 
 """
 Что должен делать SmartScheduler:
@@ -46,8 +47,6 @@ class IntervalTrainer:
     """
 
     # TODO : some usage of test dataset or delete it?
-    # __free_memory method
-    #
 
     def __init__(
         self,
@@ -73,12 +72,13 @@ class IntervalTrainer:
             This func returns float number to choose best model after validation
         Other parameters are obvious and I won't describe it
         """
-
-        self.model = model
+        self.optimizer_class = optimizer
+        self.lr = lr
+        self.model_arch = model.to("cpu")
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
-        self.optimizer = optimizer(self.model.parameters(), lr=lr)
+
         self.loss_function = loss_function
         self.epochs = epochs
         self.metric_func = metric_func
@@ -112,20 +112,50 @@ class IntervalTrainer:
         self.show_val_progressbar = show_val_progressbar
 
     def __load_states(self):
+        self.model = deepcopy(self.model_arch)
+        self.optimizer: torch.optim.Optimizer = self.optimizer_class(
+            self.model.parameters(), lr=self.lr
+        )
+        self.model = self.model.to(self.device)
+
         if self.has_states_to_load:
             self.train_sampler.set_state(torch.load("last_train_sampler_state.pth"))
             self.val_sampler.set_state(torch.load("last_val_sampler_state.pth"))
             self.model.load_state_dict(torch.load("last_model_state.pth"))
+            self.optimizer.load_state_dict(torch.load("last_optimizer_state.pth"))
 
     def __save_states(self):
         self.has_states_to_load = True
         torch.save(self.train_sampler.get_state(), "last_train_sampler_state.pth")
         torch.save(self.val_sampler.get_state(), "last_val_sampler_state.pth")
         torch.save(self.model.state_dict(), "last_model_state.pth")
+        torch.save(self.optimizer.state_dict(), "last_optimizer_state.pth")
+
         # Maybe save loss, metrics and other self.* params?
 
     def __free_memory(self):
         # Remove everything from CUDA, but keep model architecture on CPU for future loading
+        # Honestly, it does not clear CUDA completely, around 500 MB are kept on device 
+        del self.model
+        del self.optimizer
+
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
+
+        # for obj in gc.get_objects():
+        #     try:
+        #         if torch.is_tensor(obj) or (
+        #             hasattr(obj, "data") and torch.is_tensor(obj.data)
+        #         ):
+        #             print(type(obj), obj.size())
+        #     except:
+        #         pass
+
+        # print(torch.cuda.memory_allocated() / 1024**2)
+        # print(torch.cuda.memory_cached() / 1024**2)
+
         pass
 
     def __train(self, end_time):

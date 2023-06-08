@@ -12,8 +12,6 @@ class IntervalPredictor:
     conditions (emission less than threshold or less than average over moving window)
     """
 
-    # TODO : train model =) Now random weights are used
-
     def __init__(
         self,
         country_code,

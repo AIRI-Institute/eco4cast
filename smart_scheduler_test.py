@@ -62,16 +62,17 @@ trainer = IntervalTrainer(
     metric_func=metric_fun,
     val_step=700,
     show_val_progressbar=True,
-    epochs=2,
+    epochs=20,
+    device='cuda'
 )
 
 intervals = [
     (
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=0),
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=26),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=10),
     ),
     (
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=35),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30),
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=160),
     ),
 ]
