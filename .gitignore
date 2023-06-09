@@ -10,3 +10,4 @@ lightning_logs
 wandb
 SmartScheduler
 Копия_weather.ipynb
+*.ckpt

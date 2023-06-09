@@ -2,8 +2,9 @@
 
 import torch
 import tqdm
+from lightning.fabric.utilities.types import _Stateful
 
-class ResumableRandomSampler(torch.utils.data.Sampler):
+class ResumableRandomSampler(torch.utils.data.Sampler, torch.nn.Module):
     r"""Samples elements randomly. If without replacement, then sample from a shuffled dataset.
     If with replacement, then user can specify :attr:`num_samples` to draw.
     Arguments:
@@ -40,10 +41,10 @@ class ResumableRandomSampler(torch.utils.data.Sampler):
     def __len__(self):
         return self.num_samples
     
-    def get_state(self):
+    def state_dict(self):
         return {"perm": self.perm, "perm_index": self.perm_index, "generator_state": self.generator.get_state()}
     
-    def set_state(self, state):
+    def load_state_dict(self, state, strict=True):
         self.perm = state["perm"]
         self.perm_index = state["perm_index"]
         self.generator.set_state(state["generator_state"])

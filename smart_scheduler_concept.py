@@ -1,3 +1,4 @@
+from ast import List
 import torch
 from torch import nn
 from lightning.pytorch import Trainer
@@ -15,6 +16,9 @@ import datetime
 from time import sleep
 from copy import deepcopy
 import gc
+from lightning.fabric import Fabric
+from lightning.fabric.utilities.types import _Stateful
+
 
 """
 Что должен делать SmartScheduler:
@@ -63,6 +67,7 @@ class IntervalTrainer:
         batch_size=8,
         device="cpu",
         show_val_progressbar=True,
+        callbacks: List = None,
     ):
         """
         val_step: int
@@ -111,60 +116,74 @@ class IntervalTrainer:
         self.best_val_metric = 1e9
         self.show_val_progressbar = show_val_progressbar
 
+        self.fabric = Fabric(accelerator=self.device, callbacks=callbacks)
+        self.train_dataloader, self.val_dataloader = self.fabric.setup_dataloaders(
+            self.train_dataloader, self.val_dataloader
+        )
+
+    def __update_self_state(self):
+        self.state = {
+            "train_sampler": self.train_sampler,
+            "val_sampler": self.val_sampler,
+            "model": self.model,
+            "optimizer": self.optimizer,
+            "train_loss": self.train_loss,
+            "val_loss": self.val_loss,
+            "best_val_metric": self.best_val_metric,
+            "training_state": self.training_state,
+            "last_train_batch_idx": self.last_train_batch_idx,
+            "last_val_batch_idx": self.last_val_batch_idx,
+            "last_epoch": self.last_epoch,
+        }
+
     def __load_states(self):
         self.model = deepcopy(self.model_arch)
         self.optimizer: torch.optim.Optimizer = self.optimizer_class(
             self.model.parameters(), lr=self.lr
         )
-        self.model = self.model.to(self.device)
+
+        self.model, self.optimizer = self.fabric.setup(
+            self.model, self.optimizer_class(self.model.parameters(), lr=self.lr)
+        )
+
+        self.__update_self_state()
 
         if self.has_states_to_load:
-            self.train_sampler.set_state(torch.load("last_train_sampler_state.pth"))
-            self.val_sampler.set_state(torch.load("last_val_sampler_state.pth"))
-            self.model.load_state_dict(torch.load("last_model_state.pth"))
-            self.optimizer.load_state_dict(torch.load("last_optimizer_state.pth"))
+            checkpoint = self.fabric.load("fabric_checkpoint.ckpt")
+            for name, obj in self.state.copy().items():
+                if isinstance(obj, _Stateful) or isinstance(obj, nn.Module):
+                    obj.load_state_dict(checkpoint.pop(name))
+            self.train_loss = checkpoint["train_loss"]
+            self.val_loss = checkpoint["val_loss"]
+            self.best_val_metric = checkpoint["best_val_metric"]
+            self.training_state = checkpoint["training_state"]
+            self.last_train_batch_idx = checkpoint["last_train_batch_idx"]
+            self.last_val_batch_idx = checkpoint["last_val_batch_idx"]
+            self.last_epoch = checkpoint["last_epoch"]
 
     def __save_states(self):
         self.has_states_to_load = True
-        torch.save(self.train_sampler.get_state(), "last_train_sampler_state.pth")
-        torch.save(self.val_sampler.get_state(), "last_val_sampler_state.pth")
-        torch.save(self.model.state_dict(), "last_model_state.pth")
-        torch.save(self.optimizer.state_dict(), "last_optimizer_state.pth")
-
-        # Maybe save loss, metrics and other self.* params?
+        self.__update_self_state()
+        self.fabric.save("fabric_checkpoint.ckpt", self.state)
 
     def __free_memory(self):
         # Remove everything from CUDA, but keep model architecture on CPU for future loading
-        # Honestly, it does not clear CUDA completely, around 500 MB are kept on device 
+        # Honestly, it does not clear CUDA completely, around 500 MB are kept on device
         del self.model
         del self.optimizer
-
         gc.collect()
         torch.cuda.empty_cache()
 
-
-
-        # for obj in gc.get_objects():
-        #     try:
-        #         if torch.is_tensor(obj) or (
-        #             hasattr(obj, "data") and torch.is_tensor(obj.data)
-        #         ):
-        #             print(type(obj), obj.size())
-        #     except:
-        #         pass
-
-        # print(torch.cuda.memory_allocated() / 1024**2)
-        # print(torch.cuda.memory_cached() / 1024**2)
-
-        pass
-
-    def __train(self, end_time):
+    def __train_epoch(self, end_time):
         self.model.train()
         train_progress_bar = CustomStartProgressBar(
             len(self.train_dataloader), self.last_train_batch_idx, description="Train"
         )
         if self.training_state == "train_val":
-            self.__validate(end_time)
+            self.__val_epoch(end_time)
+
+        if self.last_val_batch_idx == 0:
+            self.fabric.call("on_train_epoch_start")
 
         for batch_id, batch in enumerate(self.train_dataloader):
             if datetime.datetime.now(datetime.timezone.utc) >= end_time:
@@ -174,13 +193,18 @@ class IntervalTrainer:
                 self.last_train_batch_idx += batch_id
                 break
 
+            self.fabric.call("on_train_batch_start", batch, batch_id)
             x, y = batch
-            x, y = x.to(self.device), y.to(self.device)
             logits = self.model.forward(x)
             loss = self.loss_function(logits, y)
-            self.optimizer.zero_grad()
-            loss.backward()
+            self.fabric.call("on_before_backward", loss)
+            self.fabric.backward(loss)
+            self.fabric.call("on_after_backward")
+            self.fabric.call("on_before_optimizer_step", self.optimizer)
             self.optimizer.step()
+            self.fabric.call("on_before_zero_grad", self.optimizer)
+            self.optimizer.zero_grad()
+
             self.train_loss += loss.item() / len(self.train_dataloader)
             self.train_metric += self.metric_func(y, logits) / len(
                 self.train_dataloader
@@ -188,18 +212,21 @@ class IntervalTrainer:
 
             train_progress_bar()
 
+            self.fabric.call("on_train_batch_end", loss=loss, output=logits)
+
             if (
                 self.last_train_batch_idx + batch_id > 0
                 and (self.last_train_batch_idx + batch_id) % self.val_step == 0
             ):
                 self.training_state = "train_val"
-                self.__validate(end_time)
+                self.__val_epoch(end_time)
 
         else:
             self.last_train_batch_idx = 0
             self.training_state = "val"
+            self.fabric.call("on_train_epoch_end")
 
-    def __validate(self, end_time):
+    def __val_epoch(self, end_time):
         self.model.eval()
 
         val_progress_bar = (
@@ -209,7 +236,7 @@ class IntervalTrainer:
             if self.show_val_progressbar
             else lambda: None
         )
-
+        self.fabric.call("on_validation_epoch_start")
         with torch.no_grad():
             for batch_id, batch in enumerate(self.val_dataloader):
                 if self.shutting:
@@ -220,8 +247,8 @@ class IntervalTrainer:
                     self.last_val_batch_idx += batch_id
                     break
 
+                self.fabric.call("on_validation_batch_start", batch, batch_id)
                 x, y = batch
-                x, y = x.to(self.device), y.to(self.device)
                 logits = self.model.forward(x)
                 loss = self.loss_function(logits, y)
                 self.val_loss += loss.item() / len(self.val_dataloader)
@@ -231,6 +258,7 @@ class IntervalTrainer:
 
                 val_progress_bar()
                 self.last_val_batch_idx = batch_id
+                self.fabric.call("on_validation_batch_end", logits, batch, batch_id)
 
             else:
                 # print(f'Val {batch_id} steps ended')
@@ -241,7 +269,7 @@ class IntervalTrainer:
                         "\n",
                         f"Saving new best model with metric {self.best_val_metric}",
                     )
-
+                self.fabric.call("on_validation_epoch_end")
                 self.val_metric = 0
                 self.last_val_batch_idx = 0
                 self.training_state = "train"
@@ -260,10 +288,10 @@ class IntervalTrainer:
                 or self.training_state == "train_val"
                 and not self.shutting
             ):
-                self.__train(end_time)
+                self.__train_epoch(end_time)
 
             if self.training_state == "val" and not self.shutting:
-                self.__validate(end_time)
+                self.__val_epoch(end_time)
 
             if self.shutting:
                 self.__save_states()

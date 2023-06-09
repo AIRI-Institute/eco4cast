@@ -53,6 +53,12 @@ def metric_fun(labels: torch.tensor, logits: torch.tensor):
     return (preds == labels).float().mean()
 
 
+class MyCallback:
+    def on_train_batch_end(self, loss, output):
+        print(2 * loss)
+        pass
+
+
 trainer = IntervalTrainer(
     model=Net(),
     train_dataset=train_dataset,
@@ -60,19 +66,20 @@ trainer = IntervalTrainer(
     test_dataset=None,
     loss_function=loss,
     metric_func=metric_fun,
-    val_step=700,
+    val_step=None,
     show_val_progressbar=True,
     epochs=20,
-    device='cuda'
+    device="cuda",
+    callbacks=[MyCallback()],
 )
 
 intervals = [
     (
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=0),
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=10),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=15),
     ),
     (
-        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30),
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=25),
         datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=160),
     ),
 ]
