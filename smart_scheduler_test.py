@@ -55,7 +55,7 @@ def metric_fun(labels: torch.tensor, logits: torch.tensor):
 
 class MyCallback:
     def on_train_batch_end(self, loss, output):
-        print(2 * loss)
+        # print(2 * loss)
         pass
 
 
@@ -71,6 +71,7 @@ trainer = IntervalTrainer(
     epochs=20,
     device="cuda",
     callbacks=[MyCallback()],
+    project_name='MNIST_example'
 )
 
 intervals = [

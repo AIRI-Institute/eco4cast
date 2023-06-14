@@ -1,23 +1,20 @@
 from ast import List
 import torch
 from torch import nn
-from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import Timer
-import tzlocal
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 
 from interval_predictor import IntervalPredictor
 from utils import ResumableRandomSampler, CustomStartProgressBar
 from torch.utils.data import DataLoader
-from model import ForecastingModel
 import datetime
 from time import sleep
 from copy import deepcopy
 import gc
 from lightning.fabric import Fabric
 from lightning.fabric.utilities.types import _Stateful
+import eco2ai
+import os
 
 
 """
@@ -68,6 +65,8 @@ class IntervalTrainer:
         device="cpu",
         show_val_progressbar=True,
         callbacks: List = None,
+        project_name="noname_project",
+        country_code_alpha_2=None,
     ):
         """
         val_step: int
@@ -121,6 +120,9 @@ class IntervalTrainer:
             self.train_dataloader, self.val_dataloader
         )
 
+        self.project_name = project_name
+        self.country_code_alpha_2 = country_code_alpha_2
+
     def __update_self_state(self):
         self.state = {
             "train_sampler": self.train_sampler,
@@ -134,6 +136,7 @@ class IntervalTrainer:
             "last_train_batch_idx": self.last_train_batch_idx,
             "last_val_batch_idx": self.last_val_batch_idx,
             "last_epoch": self.last_epoch,
+            "project_name": self.project_name,
         }
 
     def __load_states(self):
@@ -160,6 +163,7 @@ class IntervalTrainer:
             self.last_train_batch_idx = checkpoint["last_train_batch_idx"]
             self.last_val_batch_idx = checkpoint["last_val_batch_idx"]
             self.last_epoch = checkpoint["last_epoch"]
+            self.project_name = checkpoint["project_name"]
 
     def __save_states(self):
         self.has_states_to_load = True
@@ -275,6 +279,7 @@ class IntervalTrainer:
                 self.training_state = "train"
 
     def __train_loop(self, end_time):
+        self.emission_tracker.start()
         self.__load_states()
 
         print(
@@ -297,6 +302,7 @@ class IntervalTrainer:
                 self.__save_states()
                 self.__free_memory()
                 self.shutting = False
+                self.emission_tracker.stop()
                 print("\n", "Shutting training till next interval")
                 break
 
@@ -310,7 +316,19 @@ class IntervalTrainer:
             self.train_metric = 0
 
         else:
-            self.last_epoch += 1
+            self.emission_tracker.stop()
+            self.last_epoch = self.epochs + 1
+
+    def __init_emission_tracker(self, description):
+        if not os.path.exists(f"{self.project_name}_emissions"):
+            os.mkdir(f"{self.project_name}_emissions")
+
+        self.emission_tracker = eco2ai.Tracker(
+            project_name=self.project_name,
+            experiment_description=description,
+            file_name=f"{self.project_name}_emissions/{self.project_name}_{description}.csv",
+            alpha_2_code=self.country_code_alpha_2,
+        )
 
     def train(
         self,
@@ -320,13 +338,17 @@ class IntervalTrainer:
         This function will train model for 'epochs' epochs or until total time in time intervals will pass
         If intervals == None, training process runs as usual.
         """
+
         if datetime_intervals is None:
+            self.__init_emission_tracker(f"default_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
             self.__train_loop(
                 datetime.datetime(
                     year=2500, month=1, day=1, tzinfo=datetime.timezone.utc
                 )
             )
+
         else:
+            self.__init_emission_tracker(f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
             self.__scheduler.start()
             for start_interval, end_interval in datetime_intervals:
                 if self.last_epoch >= self.epochs:
