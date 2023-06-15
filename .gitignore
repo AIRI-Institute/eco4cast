@@ -3,7 +3,6 @@ __pycache__
 .vscode
 *.pth
 *.npy
-*.yml
 *.png
 *.csv
 lightning_logs
@@ -11,3 +10,4 @@ wandb
 SmartScheduler
 Копия_weather.ipynb
 *.ckpt
+application_default_credentials.json

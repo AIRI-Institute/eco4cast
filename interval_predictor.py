@@ -35,7 +35,7 @@ class IntervalPredictor:
         else:
             self.load_model(checkpoint_file_path=checkpoint_file_path)
 
-    def load_model(self, train=False, checkpoint_file_path="model.ckpt"):
+    def load_model(self, train=False, checkpoint_file_path="co2_model.ckpt"):
         """
         This function loads model for predicting time intervals.
         train: bool
