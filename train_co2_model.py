@@ -1,8 +1,8 @@
-from model import TCNModel
+from co2_model import TCNModel
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
-from dataset import WeatherCO2DataModule
+from weather_co2_dataset import WeatherCO2DataModule
 import numpy as np
 import torch
 

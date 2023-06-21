@@ -1,15 +1,15 @@
+from ast import List
 from weather_data_utils import get_points_over_country, get_multiple_last_weather_data
-from model import TCNModel
+from co2_model import TCNModel
 import torch
 import numpy as np
 import datetime
 import joblib
 
 
-class IntervalPredictor:
+class CO2Predictor:
     """
-    Class that uses TCNModel to predict co2emission and than generates intervals that satisfy
-    conditions (emission less than threshold or less than average over moving window)
+    Class that uses TCNModel to predict co2emission 
     """
 
     def __init__(
@@ -62,21 +62,9 @@ class IntervalPredictor:
         self.features_scaler = joblib.load("features_scaler.gz")
         self.target_scaler = joblib.load("target_scaler.gz")
 
-    def predict_intervals(
-        self,
-        time_period,
-        min_interval,
-        max_emission_value,
-    ):
+    def predict_co2(self):
         """
-        This function predicts intervals using model for predicting intervals(firstly, it needs to load weather and emission data).
-        Returns intervals, saves intervals to the parameter self.intervals
-        If also takes time_period of emission data from history for better calculation of intervals
-
-        Args:
-            time_period (int) : size of window to calculate average emission
-            min_interval (int) : minimum size of interval to choose
-            max_emission_value (float) : decision threshold
+        This function predicts co2 emission using model (firstly, it needs to load weather and emission data).
         """
         weather_data, weather_time, emission_df = get_multiple_last_weather_data(
             self.country_points,
@@ -98,104 +86,101 @@ class IntervalPredictor:
             self.emission_forecast.reshape(-1, 1)
         ).squeeze()
 
-        # Extending with history datas
-        if time_period > 0:
-            self.emission_forecast = np.insert(
-                self.emission_forecast, 0, real_emission_data[-time_period:]
-            )
-        window_size = time_period
+        return self.emission_forecast
 
-        # takes as input 24h forecasted co2 emission
-        # some calculating stuff from Alexey's algorightms
-        start = 0
-        ii = 0  # time spent for training
-        jj = 0  # current time
-        flag = True  # flag training is ongoing
-        jj_list = []  # list of time, where model was trained
 
-        training_time = 24 + time_period  # Extending with history data
+class IntervalPredictor:
+    """
+    Class that uses CO2Predictors to generate intervals that satisfy conditions 
+    (emission in time_step or moving window less than threshold)
+    """
 
-        # while current time less that allocated time
-        while jj < len(self.emission_forecast):
-            min_x = start + jj  # current time
+    def __init__(self, co2_predictors) -> None:
+        self.co2_predictors = co2_predictors
 
-            # Calculate current epoch
-            # if the remaining time required to train the model is less than the minimum training step
-            if training_time - ii < min_interval:
-                step = training_time - ii  # model is trained until target time
-                max_x = start + jj + step  # set max time
-            else:  # all except the last
-                max_x = start + jj + min_interval  # set max time
-                step = min_interval  # set step for current session
+    def predict_intervals(
+        self,
+        min_step_size=1,
+        max_window_size=3,
+        max_emission_value=180,
+    ):
+        """
+        This function predicts training intervals.
+        Uses co2_predictors to forecast co2 emission, than builds intervals with minimum total emission.
+        """
+        forecasts = []
 
-            # average emission in calculating window
-            co2_mean = np.mean(self.emission_forecast[min_x:max_x])
+        for co2_predictor in self.co2_predictors:
+            co2_forecast = co2_predictor.predict_co2()
+            forecasts.append(co2_forecast)
 
-            # calc moving average of emissions in window
-            # Пробуем учесть тренд в данных и на восходящем тренде обучать модель.
-            # Работает плохо для конца 24-часового отрезка, так как не видим куда пойдет тренд
-            predict_window_mean = (
-                np.mean(self.emission_forecast[min_x : min_x + window_size])
-                if window_size > 0
-                else 0
-            )
+        forecasts = np.stack(forecasts)
+        time_slots = np.zeros((len(forecasts), 24), dtype=int)
 
-            # condition if average emission in epoch is lower than general average of even moving average
-            if co2_mean <= predict_window_mean or co2_mean <= max_emission_value:
-                if flag == True:  # start training is ongoing
-                    jstart = jj  # get time of training start
-                    flag = False  # release flag
+        for forecast_id, forecast in enumerate(forecasts):
+            for window_size in range(max_window_size):
+                for i in range(len(forecast)):
+                    co2_mean = forecast[i : i + min_step_size + window_size].mean()
+                    if co2_mean < max_emission_value:
+                        time_slots[
+                            forecast_id, i : i + min_step_size + window_size - 1
+                        ] = 1
 
-                # calculate total emissions for current step emissions
-                jj += step  # shift current time
-                ii += step  # increase training time
-                if (
-                    ii >= training_time
-                ):  # if the time spent on training the model is more than the target
-                    break  # stop calculation
-            else:  # if condition not met
-                if not flag:  # if flag for starting of training not set
-                    jend = jj  # get end time of trainining session
-                    # save time start and time end of training session
-                    jj_list.append((jstart + start, jend + start - 1))
-                    flag = True  # release training start flag
+        time_slots_vms = np.ones((24), dtype=int) * -1
+        for i in range(24):
+            if time_slots[:, i].sum() == 0:
+                continue
+            if time_slots[:, i].sum() == 1:
+                time_slots_vms[i] = time_slots[:, i].argmax()
+            else:
+                min_co2_idx = forecasts[:, i].argmin()
+                time_slots_vms[i] = min_co2_idx
 
-                jj += 1  # increase time by one epoch
+        current_vm = -1
+        intervals = {}
+        for time, vm in enumerate(time_slots_vms):
+            if current_vm == -1:
+                current_vm = vm
+                start_time = time
 
-        if not flag:  # if training stoped
-            jend = jj
-            # save training time data
-            jj_list.append((jstart + start, jend + start - 1))
+            if vm != current_vm:
+                end_time = time
+                if current_vm in intervals.keys():
+                    intervals[current_vm].append((start_time, end_time))
+                else:
+                    intervals[current_vm] = [(start_time, end_time)]
+                current_vm = vm
+                start_time = time
+        else:
+            end_time = time
+            if current_vm in intervals.keys():
+                intervals[current_vm].append((start_time, end_time))
+            else:
+                intervals[current_vm] = [(start_time, end_time)]
 
-        jj_list = [(i - time_period + 1, j - time_period + 1) for i, j in jj_list]
-        jj_list = np.array(jj_list, dtype=int)
-        jj_list[jj_list < 0] = 0
-
-        relative_intervals = [(i, j) for i, j in jj_list if i != j]
-
-        datetime_intervals = [
-            (
-                datetime.datetime.now(datetime.timezone.utc).replace(
-                    minute=0, second=0, microsecond=0
+        datetime_intervals = {
+            k: [
+                (
+                    datetime.datetime.now(datetime.timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    )
+                    + datetime.timedelta(hours=int(jstart)),
+                    datetime.datetime.now(datetime.timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    )
+                    + datetime.timedelta(hours=int(jend)),
                 )
-                + datetime.timedelta(hours=int(jstart)),
-                datetime.datetime.now(datetime.timezone.utc).replace(
-                    minute=0, second=0, microsecond=0
-                )
-                + datetime.timedelta(hours=int(jend)),
-            )
-            for jstart, jend in relative_intervals
-        ]
-
-        self.intervals = datetime_intervals
+                for jstart, jend in intervals[k]
+            ]
+            for k in intervals.keys()
+        }
         return datetime_intervals
 
 
 if __name__ == "__main__":
-    predictor = IntervalPredictor("DNK", 0.5)
-    datetime_intervals = predictor.predict_intervals(3, 1, 100)
+    co2_predictor = CO2Predictor("DNK", 0.5)
+    co2_forecast = co2_predictor.predict_co2()
+    print(co2_forecast)
 
-    print(datetime_intervals)
-    print()
-    print("Forecast")
-    print(predictor.emission_forecast)  # shape: + time_period + 24 
+    interval_predictor = IntervalPredictor([co2_predictor])
+    print(interval_predictor.predict_intervals(max_emission_value=130))

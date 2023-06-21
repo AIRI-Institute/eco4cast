@@ -4,7 +4,7 @@ from torch import nn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 
-from interval_predictor import IntervalPredictor
+# from interval_predictor import IntervalPredictor
 from utils import ResumableRandomSampler, CustomStartProgressBar
 from torch.utils.data import DataLoader
 import datetime
@@ -333,12 +333,13 @@ class IntervalTrainer:
     def train(
         self,
         datetime_intervals=None,
+        load_states = False
     ):
         """
         This function will train model for 'epochs' epochs or until total time in time intervals will pass
         If intervals == None, training process runs as usual.
         """
-
+        self.has_states_to_load = load_states
         if datetime_intervals is None:
             self.__init_emission_tracker(f"default_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
             self.__train_loop(
@@ -388,7 +389,7 @@ class SmartSchedulerTrainer:
     def __init__(
         self,
         trainer: IntervalTrainer,
-        interval_predictor: IntervalPredictor,
+        interval_predictor,
     ):
         self.trainer = trainer
         self.interval_predictor = interval_predictor
@@ -413,7 +414,7 @@ class SmartSchedulerTrainer:
 class SmartSchedulerFunction:
     """ """
 
-    def __init__(self, function, interval_predictor: IntervalPredictor):
+    def __init__(self, function, interval_predictor):
         self.function = function
         self.interval_predictor = interval_predictor
         self.__scheduler = BackgroundScheduler(
