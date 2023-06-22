@@ -8,7 +8,6 @@ import argparse
 import datetime
 
 
-
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -36,15 +35,14 @@ class Net(nn.Module):
 
 
 transform = transforms.Compose(
-    'mnist_data', [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
 )
-train_dataset = datasets.MNIST('mnist_data',
-    train=True, download=True, transform=transform
+train_dataset = datasets.MNIST(
+    "mnist_data", train=True, download=True, transform=transform
 )
 train_dataset = Subset(train_dataset, list(range(10000)))
-val_dataset = datasets.MNIST(train=False, transform=transform)
+val_dataset = datasets.MNIST("mnist_data", train=False, transform=transform)
 val_dataset = Subset(val_dataset, list(range(5000)))
-
 
 
 def accuracy(labels: torch.tensor, logits: torch.tensor):
@@ -70,17 +68,19 @@ trainer = IntervalTrainer(
     epochs=20,
     device="cpu",
     callbacks=[MyCallback()],
-    project_name='MNIST_example'
+    project_name="MNIST_example",
 )
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--times', type=str)
-parser.add_argument('--load_states', action='store_true')
+parser.add_argument("--times", type=str)
+parser.add_argument("--load_states", action="store_true")
 args = parser.parse_args()
 
-intervals = [datetime.datetime.strptime(item, "%Y%m%d%H%M%S") for item in args.times.split(',')]
-intervals = [(intervals[i], intervals[i+1]) for i in range(0, len(intervals), 2)]
+intervals = [
+    datetime.datetime.strptime(item+'+00:00', "%Y%m%d%H%M%S%z") for item in args.times.split(",")
+]
+intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
 load_states = args.load_states
 
 trainer.train(intervals, load_states)

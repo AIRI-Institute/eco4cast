@@ -3,20 +3,30 @@ import datetime
 import paramiko
 from time import sleep
 
-# Make sure venv is installed and located in $HOME$/scheduler/venv on VM
 # Make sure ssh is anabled on VM and ssh key of this machine is in .ssh/authorized_keys of VM.  Username is scheduler
-# Make sure your vm_main.py is located in $HOME$/scheduler/scheduler_task/vm_main.py on VM with
+# Make sure venv is installed 
+# Necessary: pip install apscheduler torch lightning eco2ai
+# For this example also:  pip install torchvision
 
 
 def setup_ssh_execution(
-    ip, ssh_port, username="scheduler", command=None, command_arguments=""
+    ip,
+    ssh_port,
+    python_path,
+    vm_main_path,
+    username="scheduler",
+    command=None,
+    command_arguments="",
 ):
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh_client.connect(hostname=ip, port=ssh_port, username=username)
 
+    vm_main_folder = "/".join(vm_main_path.split("/")[:-1])
+    vm_main_file = vm_main_path.split("/")[-1]
+    
     command = (
-        "/home/scheduler/venv/bin/python /home/scheduler/scheduler_task/vm_main.py"
+        f"cd {vm_main_folder}; {python_path} {vm_main_file}"
     )
     command += " " + command_arguments
 
@@ -64,12 +74,19 @@ training_intervals = [
     ),
 ]
 
+username = "tiutiulnikov"
+python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
+vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
+current_ip = "192.168.17.10"
+ssh_port = 44444
+# current_ip = "34.175.199.46"
+# ssh_port = 22
+
+
 # current_zone = "us-west1-b"
 current_zone = "europe-southwest1-a"
 current_instance_name = "vm"
 project_id = "test-smart-scheduler"
-current_ip = "34.175.199.46"
-ssh_port = 22
 load_states = False
 
 for zone, time_intervals in training_intervals:
@@ -99,12 +116,20 @@ for zone, time_intervals in training_intervals:
         command_arguments += " --load_states"
     print("SSH Starting")
     channel, stdout = setup_ssh_execution(
-        current_ip, ssh_port, command_arguments=command_arguments
+        current_ip,
+        ssh_port,
+        python_path,
+        vm_main_path,
+        username=username,
+        command_arguments=command_arguments,
     )
 
     try:
         for line in iter(stdout.readline, ""):
             print(line, end="")
+            if 'Traceback' in line:
+                pass
+
     except KeyboardInterrupt:
         channel.send("\x03")  # Ctrl-C
         for line in iter(stdout.readline, ""):
