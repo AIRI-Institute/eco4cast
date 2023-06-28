@@ -32,7 +32,6 @@ pip install torchvision  # Installation needed for MNIST
 ```
 
 ## Step 4. Create folder and place 
-
 ```
 mkdir scheduler_task
 cd  scheduler_task
@@ -40,7 +39,6 @@ cd  scheduler_task
 
 
 ## Step 5. Copy files to VM
-
 ```
 scp smart_scheduler_concept.py  scheduler@your_ip:scheduler_task/
 scp vm_main.py  scheduler@your_ip:scheduler_task/

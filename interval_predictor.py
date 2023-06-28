@@ -9,7 +9,7 @@ import joblib
 
 class CO2Predictor:
     """
-    Class that uses TCNModel to predict co2emission 
+    Class that uses TCNModel to predict co2emission
     """
 
     def __init__(
@@ -91,12 +91,17 @@ class CO2Predictor:
 
 class IntervalPredictor:
     """
-    Class that uses CO2Predictors to generate intervals that satisfy conditions 
+    Class that uses CO2Predictors to generate intervals that satisfy conditions
     (emission in time_step or moving window less than threshold)
     """
 
-    def __init__(self, co2_predictors) -> None:
+    def __init__(self, co2_predictors, zone_names=None) -> None:
         self.co2_predictors = co2_predictors
+
+        if zone_names is None:
+            zone_names = list(range(len(co2_predictors)))
+        self.zone_names = dict(zip(list(range(len(co2_predictors))), zone_names))
+        self.zone_names[-1] = -1
 
     def predict_intervals(
         self,
@@ -127,14 +132,24 @@ class IntervalPredictor:
                         ] = 1
 
         time_slots_vms = np.ones((24), dtype=int) * -1
-        for i in range(24):
+
+        i = 0
+        last_start_point = -1
+        while i + min_step_size < 24:
             if time_slots[:, i].sum() == 0:
+                i += 1
                 continue
-            if time_slots[:, i].sum() == 1:
-                time_slots_vms[i] = time_slots[:, i].argmax()
+
+            possible_vms = time_slots[:, i : i + min_step_size].all(1)
+            if possible_vms.sum() == 1:
+                time_slots_vms[i : i + min_step_size] = possible_vms.argmax()
+                i += min_step_size
             else:
-                min_co2_idx = forecasts[:, i].argmin()
-                time_slots_vms[i] = min_co2_idx
+                co2_mean = forecasts[:, i : i + min_step_size].mean(axis=1)
+                co2_mean += (~possible_vms) * 1e9
+                min_co2_idx = co2_mean.argmin()
+                time_slots_vms[i : i + min_step_size] = min_co2_idx
+                i += min_step_size
 
         current_vm = -1
         intervals = {}
@@ -151,29 +166,52 @@ class IntervalPredictor:
                     intervals[current_vm] = [(start_time, end_time)]
                 current_vm = vm
                 start_time = time
-        else:
-            end_time = time
-            if current_vm in intervals.keys():
-                intervals[current_vm].append((start_time, end_time))
-            else:
-                intervals[current_vm] = [(start_time, end_time)]
 
-        datetime_intervals = {
-            k: [
-                (
-                    datetime.datetime.now(datetime.timezone.utc).replace(
-                        minute=0, second=0, microsecond=0
-                    )
-                    + datetime.timedelta(hours=int(jstart)),
-                    datetime.datetime.now(datetime.timezone.utc).replace(
-                        minute=0, second=0, microsecond=0
-                    )
-                    + datetime.timedelta(hours=int(jend)),
-                )
-                for jstart, jend in intervals[k]
-            ]
+        end_time = time
+        if current_vm in intervals.keys():
+            intervals[current_vm].append((start_time, end_time))
+        else:
+            intervals[current_vm] = [(start_time, end_time)]
+
+        del intervals[-1]
+
+        ordered_intervals = [
+            (k, intervals[k][i])
             for k in intervals.keys()
-        }
+            for i in range(len(intervals[k]))
+        ]
+        ordered_intervals = sorted(ordered_intervals, key=lambda x: x[1][0])
+
+        formatted_intervals = [(ordered_intervals[0][0], [ordered_intervals[0][1]])]
+
+        for vm_idx, interval in ordered_intervals[1:]:
+            if formatted_intervals[-1][0] == vm_idx:
+                formatted_intervals[-1][1].append(interval)
+            else:
+                formatted_intervals.append((vm_idx, [interval]))
+
+        formatted_intervals
+
+        datetime_intervals = [
+            (
+                self.zone_names[vm_idx],
+                [
+                    (
+                        datetime.datetime.now(datetime.timezone.utc).replace(
+                            minute=0, second=0, microsecond=0
+                        )
+                        + datetime.timedelta(hours=int(jstart)),
+                        datetime.datetime.now(datetime.timezone.utc).replace(
+                            minute=0, second=0, microsecond=0
+                        )
+                        + datetime.timedelta(hours=int(jend)),
+                    )
+                    for jstart, jend in vm_intervals
+                ],
+            )
+            for vm_idx, vm_intervals in formatted_intervals
+        ]
+
         return datetime_intervals
 
 
@@ -182,5 +220,5 @@ if __name__ == "__main__":
     co2_forecast = co2_predictor.predict_co2()
     print(co2_forecast)
 
-    interval_predictor = IntervalPredictor([co2_predictor])
+    interval_predictor = IntervalPredictor([co2_predictor], ["Denmark zone"])
     print(interval_predictor.predict_intervals(max_emission_value=130))

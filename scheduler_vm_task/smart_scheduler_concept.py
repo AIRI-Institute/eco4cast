@@ -329,6 +329,11 @@ class IntervalTrainer:
             file_name=f"{self.project_name}_emissions/{self.project_name}_{description}.csv",
             alpha_2_code=self.country_code_alpha_2,
         )
+    
+    def stop_training(self, ):
+        self.shutting = True
+        self.self.last_epoch = self.epochs
+        print('End of training.')
 
     def train(
         self,
@@ -349,12 +354,12 @@ class IntervalTrainer:
             )
 
         else:
-            self.__init_emission_tracker(f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
             self.__scheduler.start()
             for start_interval, end_interval in datetime_intervals:
                 if self.last_epoch >= self.epochs:
                     break
-
+                
+                self.__init_emission_tracker(f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
                 print(f"Scheduling {start_interval} - {end_interval} job")
                 trigger = DateTrigger(run_date=start_interval)
                 self.__scheduler.add_job(
@@ -378,6 +383,9 @@ class IntervalTrainer:
                     self.__scheduler.shutdown(wait=False)
                     self.shutting = True
                     break
+
+                del self.emission_tracker
+            self.stop_training()
 
 
 class SmartSchedulerTrainer:

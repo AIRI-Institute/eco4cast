@@ -2,6 +2,7 @@ from google_cloud_vm_moving import google_cloud_move_vm
 import datetime
 import paramiko
 import time
+from compute.client_library.snippets.instances.stop import stop_instance
 
 # Make sure ssh is anabled on VM and ssh key of this machine is in .ssh/authorized_keys of VM.  Username is scheduler
 
@@ -41,8 +42,29 @@ def setup_ssh_execution(
     return channel, stdout
 
 
-# Should be used from some IntervalPredictor
-training_intervals = [
+# username = "tiutiulnikov"
+# python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
+# vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
+# current_ip = "192.168.17.10"
+# ssh_port = 44444
+
+username = "scheduler"
+python_path = f"/home/{username}/venv/bin/python"
+vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
+current_ip = "34.175.137.247"
+ssh_port = 22
+
+
+current_zone = "us-west1-b"
+# current_zone = "europe-southwest1-a"
+current_instance_name = "instance-1"
+project_id = "test-smart-scheduler"
+load_states = False
+intervals_prediction_period = 3600 # seconds
+
+# predicted_intervals = ... Some prediction stuff
+last_prediction_time = datetime.datetime.now()
+predicted_intervals = [
     (
         "europe-southwest1-a",
         [
@@ -73,35 +95,23 @@ training_intervals = [
     ),
 ]
 
-# username = "tiutiulnikov"
-# python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
-# vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
-# current_ip = "192.168.17.10"
-# ssh_port = 44444
-
-username = "scheduler"
-python_path = f"/home/{username}/venv/bin/python"
-vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
-current_ip = "34.175.137.247"
-ssh_port = 22
-
-
-# current_zone = "us-west1-b"
-current_zone = "europe-southwest1-a"
-current_instance_name = "instance-1"
-project_id = "test-smart-scheduler"
-load_states = False
-
-for zone, time_intervals in training_intervals:
+interval_idx = 0
+shutting = False
+while interval_idx < len(predicted_intervals) and not shutting:
+    zone, time_intervals = predicted_intervals[interval_idx]
     if zone != current_zone:
         print("Moving VM")
         start_moving_time = time.time()
         new_instance = google_cloud_move_vm(
-            current_zone=current_zone, current_instance_name=current_instance_name, project_id=project_id, new_zone=zone
+            current_zone=current_zone,
+            current_instance_name=current_instance_name,
+            project_id=project_id,
+            new_zone=zone,
         )
         print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
         load_states = True
         current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
+        current_zone = zone
 
     # Scheduling job 30 seconds before first start_time
     while datetime.datetime.now(datetime.timezone.utc) < time_intervals[0][
@@ -134,6 +144,10 @@ for zone, time_intervals in training_intervals:
             print(line, end="")
             if "Traceback" in line:
                 pass
+            if 'End of training.' in line:
+                print('Stopping master machine')
+                shutting = True
+                break
 
     except KeyboardInterrupt:
         channel.send("\x03")  # Ctrl-C
@@ -141,6 +155,17 @@ for zone, time_intervals in training_intervals:
             print(line, end="")
         print("Interrupted")
         break
+    interval_idx +=1
+    if datetime.datetime.now() > last_prediction_time + datetime.timedelta(seconds=intervals_prediction_period):
+        last_prediction_time = datetime.datetime.now()
+        # predicted_intervals = ... Some prediction stuff
+        interval_idx = 0
 
 
-print("Successfully finished all intervals")
+
+
+
+print("Successfully finished all intervals. Stopping Instance")
+stop_instance(
+    project_id=project_id, zone=current_zone, instance_name=current_instance_name
+)
