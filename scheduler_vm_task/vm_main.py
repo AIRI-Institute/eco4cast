@@ -6,6 +6,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import Subset
 import argparse
 import datetime
+import pickle
 
 
 class Net(nn.Module):
@@ -50,10 +51,73 @@ def accuracy(labels: torch.tensor, logits: torch.tensor):
     return (preds == labels).float().mean()
 
 
-class MyCallback:
-    def on_train_batch_end(self, loss, output):
-        # print(2 * loss)
-        pass
+class EarlyStoppingCallback:
+    def __init__(self, patience=5, mode="max") -> None:
+        self.patience = patience
+        self.metric_history = []
+        assert mode in ["min", "max"]
+
+        self.best_val_metric = 1e9 if mode == "min" else -1e9
+        self.mode = mode
+
+    def on_validation_epoch_end(
+        self,
+        trainer: IntervalTrainer,
+        val_metric,
+    ):
+        val_metric = float(val_metric)
+        self.metric_history.append(val_metric)
+        if self.mode == "min":
+            self.best_val_metric = min(self.best_val_metric, val_metric)
+        else:
+            self.best_val_metric = max(self.best_val_metric, val_metric)
+
+        if self.best_val_metric not in self.metric_history[-self.patience - 1 :]:
+            print("\n", "EarlyStopping")
+            trainer.stop_training()
+
+
+class BestModelSavingCallback:
+    def __init__(self, mode="max") -> None:
+        assert mode in ["min", "max"]
+        self.best_val_metric = 1e9 if mode == "min" else -1e9
+        self.mode = mode
+
+    def on_validation_epoch_end(
+        self,
+        trainer: IntervalTrainer,
+        val_metric,
+    ):
+        if (self.mode == "min" and val_metric < self.best_val_metric) or (
+            self.mode == "max" and val_metric > self.best_val_metric
+        ):
+            self.best_val_metric = val_metric
+            torch.save(trainer.model.state_dict(), "best_model.pth")
+            print(
+                "\n",
+                f"Saving new best model with metric {self.best_val_metric}",
+            )
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--times", type=str)
+parser.add_argument("--load_states", action="store_true")
+args = parser.parse_args()
+
+intervals = [
+    datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
+    for item in args.times.split(",")
+]
+intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
+load_states = args.load_states
+
+
+callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]
+
+# if load_states:
+#     for i in range(len(callbacks)):
+#         with open(f"{callbacks[i].__class__.__name__}.pkl", "rb") as inp_file:
+#             callbacks[i] = pickle.load(inp_file)
 
 
 trainer = IntervalTrainer(
@@ -67,20 +131,13 @@ trainer = IntervalTrainer(
     show_val_progressbar=True,
     epochs=20,
     device="cpu",
-    callbacks=[MyCallback()],
+    callbacks=callbacks,
     project_name="MNIST_example",
 )
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--times", type=str)
-parser.add_argument("--load_states", action="store_true")
-args = parser.parse_args()
-
-intervals = [
-    datetime.datetime.strptime(item+'+00:00', "%Y%m%d%H%M%S%z") for item in args.times.split(",")
-]
-intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
-load_states = args.load_states
-
 trainer.train(intervals, load_states)
+
+# for callback in callbacks:
+#     with open(f"{callback.__class__.__name__}.pkl", "wb") as out_file:
+#         pickle.dump(callback, out_file, pickle.HIGHEST_PROTOCOL)

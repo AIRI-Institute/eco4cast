@@ -1,8 +1,8 @@
-from google_cloud_vm_moving import google_cloud_move_vm
+# from google_cloud_vm_moving import google_cloud_move_vm
 import datetime
 import paramiko
 import time
-from compute.client_library.snippets.instances.stop import stop_instance
+# from compute.client_library.snippets.instances.stop import stop_instance
 
 # Make sure ssh is anabled on VM and ssh key of this machine is in .ssh/authorized_keys of VM.  Username is scheduler
 
@@ -42,17 +42,17 @@ def setup_ssh_execution(
     return channel, stdout
 
 
-# username = "tiutiulnikov"
-# python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
-# vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
-# current_ip = "192.168.17.10"
-# ssh_port = 44444
+username = "tiutiulnikov"
+python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
+vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
+current_ip = "192.168.17.10"
+ssh_port = 44444
 
-username = "scheduler"
-python_path = f"/home/{username}/venv/bin/python"
-vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
-current_ip = "34.175.137.247"
-ssh_port = 22
+# username = "scheduler"
+# python_path = f"/home/{username}/venv/bin/python"
+# vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
+# current_ip = "34.175.137.247"
+# ssh_port = 22
 
 
 current_zone = "us-west1-b"
@@ -72,14 +72,14 @@ predicted_intervals = [
                 datetime.datetime.now(datetime.timezone.utc)
                 + datetime.timedelta(seconds=0),
                 datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=30),
+                + datetime.timedelta(seconds=60),
             ),  # interval start_time, end_time
-            (
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=50),
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=80),
-            ),
+            # (
+            #     datetime.datetime.now(datetime.timezone.utc)
+            #     + datetime.timedelta(seconds=50),
+            #     datetime.datetime.now(datetime.timezone.utc)
+            #     + datetime.timedelta(seconds=80),
+            # ),
         ],
     ),
     (
@@ -87,7 +87,7 @@ predicted_intervals = [
         [
             (
                 datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(minutes=8, seconds=0),
+                + datetime.timedelta(minutes=2, seconds=0),
                 datetime.datetime.now(datetime.timezone.utc)
                 + datetime.timedelta(minutes=12, seconds=0),
             )
@@ -101,17 +101,16 @@ while interval_idx < len(predicted_intervals) and not shutting:
     zone, time_intervals = predicted_intervals[interval_idx]
     if zone != current_zone:
         print("Moving VM")
-        start_moving_time = time.time()
-        new_instance = google_cloud_move_vm(
-            current_zone=current_zone,
-            current_instance_name=current_instance_name,
-            project_id=project_id,
-            new_zone=zone,
-        )
-        print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
-        load_states = True
-        current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
-        current_zone = zone
+        # start_moving_time = time.time()
+        # new_instance = google_cloud_move_vm(
+        #     current_zone=current_zone,
+        #     current_instance_name=current_instance_name,
+        #     project_id=project_id,
+        #     new_zone=zone,
+        # )
+        # print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
+        # current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
+        # current_zone = zone
 
     # Scheduling job 30 seconds before first start_time
     while datetime.datetime.now(datetime.timezone.utc) < time_intervals[0][
@@ -160,12 +159,12 @@ while interval_idx < len(predicted_intervals) and not shutting:
         last_prediction_time = datetime.datetime.now()
         # predicted_intervals = ... Some prediction stuff
         interval_idx = 0
-
-
+    
+    load_states = True
 
 
 
 print("Successfully finished all intervals. Stopping Instance")
-stop_instance(
-    project_id=project_id, zone=current_zone, instance_name=current_instance_name
-)
+# stop_instance(
+#     project_id=project_id, zone=current_zone, instance_name=current_instance_name
+# )

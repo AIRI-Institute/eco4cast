@@ -122,6 +122,7 @@ class IntervalTrainer:
 
         self.project_name = project_name
         self.country_code_alpha_2 = country_code_alpha_2
+        self.callbacks = callbacks
 
     def __update_self_state(self):
         self.state = {
@@ -137,6 +138,7 @@ class IntervalTrainer:
             "last_val_batch_idx": self.last_val_batch_idx,
             "last_epoch": self.last_epoch,
             "project_name": self.project_name,
+            "callbacks": self.callbacks,
         }
 
     def __load_states(self):
@@ -164,6 +166,8 @@ class IntervalTrainer:
             self.last_val_batch_idx = checkpoint["last_val_batch_idx"]
             self.last_epoch = checkpoint["last_epoch"]
             self.project_name = checkpoint["project_name"]
+            self.callbacks = checkpoint['callbacks']
+            print(self.callbacks[0].metric_history, )
 
     def __save_states(self):
         self.has_states_to_load = True
@@ -187,7 +191,7 @@ class IntervalTrainer:
             self.__val_epoch(end_time)
 
         if self.last_val_batch_idx == 0:
-            self.fabric.call("on_train_epoch_start")
+            self.fabric.call("on_train_epoch_start", self)
 
         for batch_id, batch in enumerate(self.train_dataloader):
             if datetime.datetime.now(datetime.timezone.utc) >= end_time:
@@ -197,16 +201,16 @@ class IntervalTrainer:
                 self.last_train_batch_idx += batch_id
                 break
 
-            self.fabric.call("on_train_batch_start", batch, batch_id)
+            self.fabric.call("on_train_batch_start", self, batch, batch_id)
             x, y = batch
             logits = self.model.forward(x)
             loss = self.loss_function(logits, y)
-            self.fabric.call("on_before_backward", loss)
+            self.fabric.call("on_before_backward", self, loss)
             self.fabric.backward(loss)
             self.fabric.call("on_after_backward")
-            self.fabric.call("on_before_optimizer_step", self.optimizer)
+            self.fabric.call("on_before_optimizer_step", self, self.optimizer)
             self.optimizer.step()
-            self.fabric.call("on_before_zero_grad", self.optimizer)
+            self.fabric.call("on_before_zero_grad", self, self.optimizer)
             self.optimizer.zero_grad()
 
             self.train_loss += loss.item() / len(self.train_dataloader)
@@ -216,7 +220,7 @@ class IntervalTrainer:
 
             train_progress_bar()
 
-            self.fabric.call("on_train_batch_end", loss=loss, output=logits)
+            self.fabric.call("on_train_batch_end", self, loss=loss, output=logits)
 
             if (
                 self.last_train_batch_idx + batch_id > 0
@@ -228,7 +232,7 @@ class IntervalTrainer:
         else:
             self.last_train_batch_idx = 0
             self.training_state = "val"
-            self.fabric.call("on_train_epoch_end")
+            self.fabric.call("on_train_epoch_end", self)
 
     def __val_epoch(self, end_time):
         self.model.eval()
@@ -240,7 +244,7 @@ class IntervalTrainer:
             if self.show_val_progressbar
             else lambda: None
         )
-        self.fabric.call("on_validation_epoch_start")
+        self.fabric.call("on_validation_epoch_start", self)
         with torch.no_grad():
             for batch_id, batch in enumerate(self.val_dataloader):
                 if self.shutting:
@@ -251,7 +255,7 @@ class IntervalTrainer:
                     self.last_val_batch_idx += batch_id
                     break
 
-                self.fabric.call("on_validation_batch_start", batch, batch_id)
+                self.fabric.call("on_validation_batch_start", self, batch, batch_id)
                 x, y = batch
                 logits = self.model.forward(x)
                 loss = self.loss_function(logits, y)
@@ -262,18 +266,20 @@ class IntervalTrainer:
 
                 val_progress_bar()
                 self.last_val_batch_idx = batch_id
-                self.fabric.call("on_validation_batch_end", logits, batch, batch_id)
+                self.fabric.call(
+                    "on_validation_batch_end", self, logits, batch, batch_id
+                )
 
             else:
                 # print(f'Val {batch_id} steps ended')
-                if self.val_metric < self.best_val_metric:
-                    self.best_val_metric = self.val_metric
-                    torch.save(self.model.state_dict(), "best_model.pth")
-                    print(
-                        "\n",
-                        f"Saving new best model with metric {self.best_val_metric}",
-                    )
-                self.fabric.call("on_validation_epoch_end")
+                # if self.val_metric < self.best_val_metric:
+                #     self.best_val_metric = self.val_metric
+                #     torch.save(self.model.state_dict(), "best_model.pth")
+                #     print(
+                #         "\n",
+                #         f"Saving new best model with metric {self.best_val_metric}",
+                #     )
+                self.fabric.call("on_validation_epoch_end", self, self.val_metric)
                 self.val_metric = 0
                 self.last_val_batch_idx = 0
                 self.training_state = "train"
@@ -305,12 +311,10 @@ class IntervalTrainer:
                 self.emission_tracker.stop()
                 print("\n", "Shutting training till next interval")
                 break
-
             print(
                 f"Epoch {self.last_epoch} \t Training Loss: {self.train_loss} \t"
                 + f"Validation Loss: {self.val_loss}"
             )
-
             self.train_loss = 0
             self.val_loss = 0
             self.train_metric = 0
@@ -329,24 +333,24 @@ class IntervalTrainer:
             file_name=f"{self.project_name}_emissions/{self.project_name}_{description}.csv",
             alpha_2_code=self.country_code_alpha_2,
         )
-    
-    def stop_training(self, ):
-        self.shutting = True
-        self.self.last_epoch = self.epochs
-        print('End of training.')
 
-    def train(
+    def stop_training(
         self,
-        datetime_intervals=None,
-        load_states = False
     ):
+        self.shutting = True
+        self.last_epoch = self.epochs
+        print("End of training.")
+
+    def train(self, datetime_intervals=None, load_states=False):
         """
         This function will train model for 'epochs' epochs or until total time in time intervals will pass
         If intervals == None, training process runs as usual.
         """
         self.has_states_to_load = load_states
         if datetime_intervals is None:
-            self.__init_emission_tracker(f"default_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
+            self.__init_emission_tracker(
+                f"default_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}"
+            )
             self.__train_loop(
                 datetime.datetime(
                     year=2500, month=1, day=1, tzinfo=datetime.timezone.utc
@@ -358,8 +362,10 @@ class IntervalTrainer:
             for start_interval, end_interval in datetime_intervals:
                 if self.last_epoch >= self.epochs:
                     break
-                
-                self.__init_emission_tracker(f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}")
+
+                self.__init_emission_tracker(
+                    f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}"
+                )
                 print(f"Scheduling {start_interval} - {end_interval} job")
                 trigger = DateTrigger(run_date=start_interval)
                 self.__scheduler.add_job(
@@ -369,7 +375,7 @@ class IntervalTrainer:
                     id=f"job",
                 )
 
-                # 5 seconds for saving states
+                # 5 extra seconds for saving states
                 waiting_till = end_interval + datetime.timedelta(seconds=5)
                 try:
                     while (
@@ -385,7 +391,6 @@ class IntervalTrainer:
                     break
 
                 del self.emission_tracker
-            self.stop_training()
 
 
 class SmartSchedulerTrainer:

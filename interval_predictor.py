@@ -108,6 +108,7 @@ class IntervalPredictor:
         min_step_size=1,
         max_window_size=3,
         max_emission_value=180,
+        co2_delta_to_move = 30
     ):
         """
         This function predicts training intervals.
@@ -134,22 +135,27 @@ class IntervalPredictor:
         time_slots_vms = np.ones((24), dtype=int) * -1
 
         i = 0
-        last_start_point = -1
-        while i + min_step_size < 24:
+        current_vm_idx = 0
+
+        while i + min_step_size <= 24:
             if time_slots[:, i].sum() == 0:
                 i += 1
                 continue
 
-            possible_vms = time_slots[:, i : i + min_step_size].all(1)
+            possible_vms = time_slots[:, i: i+min_step_size].all(1)
             if possible_vms.sum() == 1:
-                time_slots_vms[i : i + min_step_size] = possible_vms.argmax()
+                time_slots_vms[i:i+min_step_size] = current_vm_idx = possible_vms.argmax()
                 i += min_step_size
             else:
                 co2_mean = forecasts[:, i : i + min_step_size].mean(axis=1)
                 co2_mean += (~possible_vms) * 1e9
+                co2_mean[current_vm_idx] -= co2_delta_to_move
                 min_co2_idx = co2_mean.argmin()
-                time_slots_vms[i : i + min_step_size] = min_co2_idx
-                i += min_step_size
+                time_slots_vms[i: i + min_step_size]= min_co2_idx
+                i+=min_step_size
+
+            
+
 
         current_vm = -1
         intervals = {}
