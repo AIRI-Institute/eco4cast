@@ -167,7 +167,6 @@ class IntervalTrainer:
             self.last_epoch = checkpoint["last_epoch"]
             self.project_name = checkpoint["project_name"]
             self.callbacks = checkpoint['callbacks']
-            print(self.callbacks[0].metric_history, )
 
     def __save_states(self):
         self.has_states_to_load = True
@@ -271,14 +270,6 @@ class IntervalTrainer:
                 )
 
             else:
-                # print(f'Val {batch_id} steps ended')
-                # if self.val_metric < self.best_val_metric:
-                #     self.best_val_metric = self.val_metric
-                #     torch.save(self.model.state_dict(), "best_model.pth")
-                #     print(
-                #         "\n",
-                #         f"Saving new best model with metric {self.best_val_metric}",
-                #     )
                 self.fabric.call("on_validation_epoch_end", self, self.val_metric)
                 self.val_metric = 0
                 self.last_val_batch_idx = 0

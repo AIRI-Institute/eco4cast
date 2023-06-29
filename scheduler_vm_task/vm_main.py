@@ -6,7 +6,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import Subset
 import argparse
 import datetime
-import pickle
 
 
 class Net(nn.Module):
@@ -114,11 +113,6 @@ load_states = args.load_states
 
 callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]
 
-# if load_states:
-#     for i in range(len(callbacks)):
-#         with open(f"{callbacks[i].__class__.__name__}.pkl", "rb") as inp_file:
-#             callbacks[i] = pickle.load(inp_file)
-
 
 trainer = IntervalTrainer(
     model=Net(),
@@ -137,7 +131,3 @@ trainer = IntervalTrainer(
 
 
 trainer.train(intervals, load_states)
-
-# for callback in callbacks:
-#     with open(f"{callback.__class__.__name__}.pkl", "wb") as out_file:
-#         pickle.dump(callback, out_file, pickle.HIGHEST_PROTOCOL)
