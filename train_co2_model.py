@@ -1,29 +1,29 @@
-from co2_model import TCNModel
+from co2_model import CO2Model
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 from weather_co2_dataset import WeatherCO2DataModule
 import numpy as np
 import torch
+import pandas as pd
 
 
 torch.manual_seed(0)
 
-model = TCNModel(
-    {
-        "num_inputs": 22 * 40,
-        "num_channels": [512, 256, 128, 128, 64, 32],
-        "kernel_size": 4,
-        "dropout": 0.2,
+model = CO2Model(
+    tcn_hparams={
+        "num_inputs": 23*38,
+        # "num_channels": [64, 128, 128, 128, 256],
+        "num_channels": [512, 256, 256, 256, 256],
+        "kernel_size": 3,
+        "dropout": 0.0,
     },
-    96,
-    24,
-    "SGD",
-    {"lr": 1e-4, "weight_decay": 1e-5},
+    attention_layers_num = 8,
+    predict_window=24,
+    optimizer_name="Adam",
+    optimizer_hparams={"lr": 1e-3, "weight_decay": 1e-4},
 )
 
-
-wandb_logger = WandbLogger(log_model="all", project="SmartScheduler")
 
 trainer = Trainer(
     accelerator="gpu",
@@ -38,24 +38,30 @@ trainer = Trainer(
         EarlyStopping(monitor="val_loss", mode="min", patience=20),
     ],
     default_root_dir="models",
-    logger=wandb_logger,
+    logger=WandbLogger(log_model="all", project="SmartScheduler"),
 )
 
 
-weather_points_dataset = np.load("weather_data_2021-2023.npy", allow_pickle=True)
-emission_data = np.load("emission_data_2021-2023.npy", allow_pickle=True)
+codes = ["BR-CS", "CA-ON", "CH", "DE", "PL", "BE", "IT-NO", "CA-QC", "ES", "GB", "FI", "FR", "NL"]
 
-datetimes = list(range(len(emission_data)))
+features_data = []
+targets_data = []
+for code in codes:
+    features = np.load(f"electricitymaps_datasets/{code}_np_dataset.npy", allow_pickle=True)
+    features_data.append(features)
+
+    emission_df = pd.concat(
+        (
+            pd.read_csv(f"electricitymaps_datasets/{code}_2021_hourly.csv"),
+            pd.read_csv(f"electricitymaps_datasets/{code}_2022_hourly.csv"),
+        )
+    ).reset_index(drop=True)
+    target = emission_df["Carbon Intensity gCO₂eq/kWh (LCA)"].to_numpy()
+    targets_data.append(target)
+
 
 dm = WeatherCO2DataModule(
-    weather_points_dataset,
-    emission_data,
-    datetimes,
-    96,
-    24,
-    num_workers=5,
-    batch_size=32,
-    split_sizes=[0.8, 0.2, 0.0],
+    features_data, targets_data, 24, 24, 10, 64
 )
 
 

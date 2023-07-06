@@ -7,6 +7,7 @@ import cartopy.io.shapereader as shpreader
 import numpy as np
 from shapely import Point
 from itertools import product
+import json
 
 parameters = [
     "temperature_2m",
@@ -23,7 +24,7 @@ parameters = [
     "windgusts_10m",
     "shortwave_radiation",
     "direct_radiation",
-    "direct_normal_irradiance",
+    # "direct_normal_irradiance",
     "diffuse_radiation",
     "vapor_pressure_deficit",
     "et0_fao_evapotranspiration",
@@ -57,8 +58,7 @@ def get_historic_data(
         else:
             response_string += parameter
     response = requests.get(response_string).content
-    # print(response)
-    weather_dictionary = eval(response)
+    weather_dictionary = json.loads(response)
     dataframe = pd.DataFrame.from_dict(weather_dictionary["hourly"])
     dataframe["time"] = pd.to_datetime(dataframe["time"])
     return dataframe
@@ -385,23 +385,23 @@ def get_multiple_last_weather_data(
         days=delta_days, hours=lookback_window
     )
 
-    emission_df = None
-    if co2_emission_delta_days is not None:
-        emission_df = get_emission_data(
-            year_start=start_time.year,
-            month_start=start_time.month
-            if start_time.month > 9
-            else f"0{start_time.month}",
-            day_start=start_time.day if start_time.day > 9 else f"0{start_time.day}",
-            year_end=current_time.year,
-            month_end=current_time.month
-            if current_time.month > 9
-            else f"0{current_time.month}",
-            day_end=current_time.day + 1
-            if current_time.day > 8
-            else f"0{current_time.day}",
-        )
-        emission_df = average_emission_data(emission_df)
+    # emission_df = None
+    # if co2_emission_delta_days is not None:
+    #     emission_df = get_emission_data(
+    #         year_start=start_time.year,
+    #         month_start=start_time.month
+    #         if start_time.month > 9
+    #         else f"0{start_time.month}",
+    #         day_start=start_time.day if start_time.day > 9 else f"0{start_time.day}",
+    #         year_end=current_time.year,
+    #         month_end=current_time.month
+    #         if current_time.month > 9
+    #         else f"0{current_time.month}",
+    #         day_end=current_time.day + 1
+    #         if current_time.day > 8
+    #         else f"0{current_time.day}",
+    #     )
+    #     emission_df = average_emission_data(emission_df)
 
     for longitude, latitude in points:
         weather_df = get_last_weather_data(
@@ -432,11 +432,11 @@ def get_multiple_last_weather_data(
                     onehot_weathercodes, index=weather_df.index
                 )
 
-        if co2_emission_delta_days is not None:
-            # use same co2 emission info for each point
-            weather_df, emission_df = join_datasets(
-                emission_df, weather_df, delta_days=co2_emission_delta_days
-            )
+        # if co2_emission_delta_days is not None:
+        #     # use same co2 emission info for each point
+        #     weather_df, emission_df = join_datasets(
+        #         emission_df, weather_df, delta_days=co2_emission_delta_days
+        #     )
         weather_matrix = weather_df.drop(columns=["time"]).to_numpy()
         weather_matrices.append(weather_matrix)
 
@@ -445,6 +445,8 @@ def get_multiple_last_weather_data(
     emission_df = None if emission_df is None else emission_df[-lookback_window:]
 
     return weather_data, weather_time_data, emission_df
+
+
 
 
 if __name__ == "__main__":

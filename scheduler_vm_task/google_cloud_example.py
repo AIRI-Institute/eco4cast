@@ -1,4 +1,4 @@
-# from google_cloud_vm_moving import google_cloud_move_vm
+from google_cloud_vm_moving import google_cloud_move_vm
 import datetime
 import paramiko
 import time
@@ -38,7 +38,7 @@ def setup_ssh_execution(
     stdin = channel.makefile_stdin("wb", bufsize)
     stdout = channel.makefile("r", bufsize)
     stderr = channel.makefile_stderr("r", bufsize)
-
+    
     return channel, stdout
 
 
@@ -101,16 +101,16 @@ while interval_idx < len(predicted_intervals) and not shutting:
     zone, time_intervals = predicted_intervals[interval_idx]
     if zone != current_zone:
         print("Moving VM")
-        # start_moving_time = time.time()
-        # new_instance = google_cloud_move_vm(
-        #     current_zone=current_zone,
-        #     current_instance_name=current_instance_name,
-        #     project_id=project_id,
-        #     new_zone=zone,
-        # )
-        # print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
-        # current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
-        # current_zone = zone
+        start_moving_time = time.time()
+        new_instance = google_cloud_move_vm(
+            current_zone=current_zone,
+            current_instance_name=current_instance_name,
+            project_id=project_id,
+            new_zone=zone,
+        )
+        print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
+        current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
+        current_zone = zone
 
     # Scheduling job 30 seconds before first start_time
     while datetime.datetime.now(datetime.timezone.utc) < time_intervals[0][
