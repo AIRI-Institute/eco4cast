@@ -1,4 +1,4 @@
-from smart_scheduler_concept import IntervalTrainer
+from smartscheduler.virtual_machine.smart_scheduler_concept import IntervalTrainer
 from torch import nn
 import torch.nn.functional as F
 import torch

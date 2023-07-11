@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import requests
 import cartopy.io.shapereader as shpreader
-import numpy as np
 from shapely import Point
 from itertools import product
 import json

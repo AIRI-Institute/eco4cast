@@ -4,8 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 import torch.optim as optim
 import torch
-from scheduler_vm_task.master_machine.tcn_pytorch import TemporalConvNet
-from torchsummary import summary
+from smartscheduler.master_machine.tcn_pytorch import TemporalConvNet
 
 
 class ForecastingModel(nn.Module):
@@ -200,8 +199,6 @@ if __name__ == "__main__":
 
     print(model(torch.ones(8, 96, 21, 40).cuda()).shape)
     print(sum(p.numel() for p in model.parameters()))
-    print(summary(model, (96, 21, 40), device="cpu"))
-
     print(model)
 
  

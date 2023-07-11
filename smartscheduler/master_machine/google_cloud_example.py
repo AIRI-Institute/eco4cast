@@ -1,14 +1,14 @@
-from google_cloud_vm_moving import google_cloud_move_vm
+from smartscheduler.master_machine.google_cloud_vm_moving import google_cloud_move_vm
 import datetime
 import paramiko
 import time
-from utils import codes_to_gcloud_zones
-from compute.client_library.snippets.instances.stop import (
+from smartscheduler.master_machine.utils import codes_to_gcloud_zones
+from smartscheduler.master_machine.compute.client_library.snippets.instances.stop import (
     stop_instance,
 )
 from time import sleep
-from interval_predictor import CO2Predictor, IntervalGenerator
-from utils import code_names
+from smartscheduler.master_machine.interval_predictor import CO2Predictor, IntervalGenerator
+from smartscheduler.master_machine.utils import code_names
 
 
 # Make sure ssh is anabled on VM and ssh key of this machine is in .ssh/authorized_keys of VM.  Username is scheduler

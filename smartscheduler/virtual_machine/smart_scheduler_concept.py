@@ -5,7 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 
 # from interval_predictor import IntervalPredictor
-from utils import ResumableRandomSampler, CustomStartProgressBar
+from smartscheduler.virtual_machine.utils import ResumableRandomSampler, CustomStartProgressBar
 from torch.utils.data import DataLoader
 import datetime
 from time import sleep

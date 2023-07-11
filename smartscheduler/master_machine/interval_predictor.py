@@ -1,14 +1,14 @@
 from ast import List
-from scheduler_vm_task.master_machine.weather_data_utils import (
+from smartscheduler.master_machine.weather_data_utils import (
     get_last_weather_data,
     get_points_over_country,
 )
-from scheduler_vm_task.master_machine.co2_model import CO2Model
+from smartscheduler.master_machine.co2_model import CO2Model
 import torch
 import numpy as np
 import datetime
-from scheduler_vm_task.master_machine.electricitymaps_api import get_24h_history
-from scheduler_vm_task.master_machine.utils import countryISOMapping, codes_with_steps, code_names
+from smartscheduler.master_machine.electricitymaps_api import get_24h_history
+from smartscheduler.master_machine.utils import countryISOMapping, codes_with_steps, code_names
 
 
 class CO2Predictor:
