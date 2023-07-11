@@ -2,7 +2,14 @@ from google_cloud_vm_moving import google_cloud_move_vm
 import datetime
 import paramiko
 import time
-# from compute.client_library.snippets.instances.stop import stop_instance
+from utils import codes_to_gcloud_zones
+from compute.client_library.snippets.instances.stop import (
+    stop_instance,
+)
+from time import sleep
+from interval_predictor import CO2Predictor, IntervalGenerator
+from utils import code_names
+
 
 # Make sure ssh is anabled on VM and ssh key of this machine is in .ssh/authorized_keys of VM.  Username is scheduler
 
@@ -35,70 +42,71 @@ def setup_ssh_execution(
     channel = transport.open_session()
     channel.get_pty()
     channel.exec_command(command)
-    stdin = channel.makefile_stdin("wb", bufsize)
+    # stdin = channel.makefile_stdin("wb", bufsize)
     stdout = channel.makefile("r", bufsize)
-    stderr = channel.makefile_stderr("r", bufsize)
-    
+    # stderr = channel.makefile_stderr("r", bufsize)
+
     return channel, stdout
 
 
-username = "tiutiulnikov"
-python_path = f"/home/{username}/tiutiulnikov/venv/bin/python"
-vm_main_path = f"/home/{username}/tiutiulnikov/SmartScheduler/scheduler_vm_task/vm_main.py"
-current_ip = "192.168.17.10"
-ssh_port = 44444
 
-# username = "scheduler"
-# python_path = f"/home/{username}/venv/bin/python"
-# vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
-# current_ip = "34.175.137.247"
-# ssh_port = 22
+username = "scheduler"
+python_path = f"/home/{username}/venv/bin/python"
+vm_main_path = f"/home/{username}/scheduler_task/vm_main.py"
+current_ip = "34.152.12.159"
+ssh_port = 22
 
 
-current_zone = "us-west1-b"
-# current_zone = "europe-southwest1-a"
+current_zone = "northamerica-northeast1-b"
 current_instance_name = "instance-1"
 project_id = "test-smart-scheduler"
 load_states = False
-intervals_prediction_period = 3600 # seconds
+intervals_prediction_period = 3600  # seconds
 
-# predicted_intervals = ... Some prediction stuff
+
+max_emission_value = 130
+min_interval_size = 1
+co2_delta_to_move = 0
 last_prediction_time = datetime.datetime.now()
-predicted_intervals = [
-    (
-        "europe-southwest1-a",
-        [
-            (
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=0),
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(seconds=60),
-            ),  # interval start_time, end_time
-            # (
-            #     datetime.datetime.now(datetime.timezone.utc)
-            #     + datetime.timedelta(seconds=50),
-            #     datetime.datetime.now(datetime.timezone.utc)
-            #     + datetime.timedelta(seconds=80),
-            # ),
-        ],
-    ),
-    (
-        "us-west1-b",
-        [
-            (
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(minutes=2, seconds=0),
-                datetime.datetime.now(datetime.timezone.utc)
-                + datetime.timedelta(minutes=12, seconds=0),
-            )
-        ],
-    ),
-]
+co2_predictor = CO2Predictor()
+interval_generator = IntervalGenerator(code_names)
+co2_forecast = co2_predictor.predict_co2()
+predicted_intervals = interval_generator.generate_intervals(
+    forecasts=co2_forecast,
+    max_emission_value=max_emission_value,
+    co2_delta_to_move=co2_delta_to_move,
+    min_interval_size=min_interval_size,
+    # exclude_zones=['FR'],
+    # include_zones=['BR-CS']
+)
+
+# predicted_intervals = [
+#     (
+#         "CA-QC",
+#         [
+#             (
+#                 datetime.datetime(2023, 7, 11, 10, 0, tzinfo=datetime.timezone.utc),
+#                 datetime.datetime(2023, 7, 11, 10, 20, tzinfo=datetime.timezone.utc),
+#             )
+#         ],
+#     ),
+#     (
+#         "FR",
+#         [
+#             (
+#                 datetime.datetime(2023, 7, 11, 10, 30, tzinfo=datetime.timezone.utc),
+#                 datetime.datetime(2023, 7, 12, 8, 0, tzinfo=datetime.timezone.utc),
+#             )
+#         ],
+#     )
+# ]
+
 
 interval_idx = 0
 shutting = False
 while interval_idx < len(predicted_intervals) and not shutting:
-    zone, time_intervals = predicted_intervals[interval_idx]
+    code, time_intervals = predicted_intervals[interval_idx]
+    zone = codes_to_gcloud_zones[code]
     if zone != current_zone:
         print("Moving VM")
         start_moving_time = time.time()
@@ -111,6 +119,7 @@ while interval_idx < len(predicted_intervals) and not shutting:
         print(f"Moving completed in {int(time.time()-start_moving_time)} seconds")
         current_ip = new_instance.network_interfaces[0].access_configs[0].nat_i_p
         current_zone = zone
+        sleep(10)
 
     # Scheduling job 30 seconds before first start_time
     while datetime.datetime.now(datetime.timezone.utc) < time_intervals[0][
@@ -143,8 +152,8 @@ while interval_idx < len(predicted_intervals) and not shutting:
             print(line, end="")
             if "Traceback" in line:
                 pass
-            if 'End of training.' in line:
-                print('Stopping master machine')
+            if "End of training." in line:
+                print("Stopping master machine")
                 shutting = True
                 break
 
@@ -154,17 +163,26 @@ while interval_idx < len(predicted_intervals) and not shutting:
             print(line, end="")
         print("Interrupted")
         break
-    interval_idx +=1
-    if datetime.datetime.now() > last_prediction_time + datetime.timedelta(seconds=intervals_prediction_period):
+    interval_idx += 1
+    if datetime.datetime.now() > last_prediction_time + datetime.timedelta(
+        seconds=intervals_prediction_period
+    ):
         last_prediction_time = datetime.datetime.now()
-        # predicted_intervals = ... Some prediction stuff
+        co2_forecast = co2_predictor.predict_co2()
+        predicted_intervals = interval_generator.generate_intervals(
+            forecasts=co2_forecast,
+            max_emission_value=max_emission_value,
+            co2_delta_to_move=co2_delta_to_move,
+            min_interval_size=min_interval_size,
+            # exclude_zones=['FR'],
+            # include_zones=['BR-CS']
+        )
         interval_idx = 0
-    
+
     load_states = True
 
 
-
 print("Successfully finished all intervals. Stopping Instance")
-# stop_instance(
-#     project_id=project_id, zone=current_zone, instance_name=current_instance_name
-# )
+stop_instance(
+    project_id=project_id, zone=current_zone, instance_name=current_instance_name
+)

@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 import torch.optim as optim
 import torch
-from tcn_pytorch import TemporalConvNet
+from scheduler_vm_task.master_machine.tcn_pytorch import TemporalConvNet
 from torchsummary import summary
 
 

@@ -111,7 +111,8 @@ intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 
 load_states = args.load_states
 
 
-callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]
+# callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]
+callbacks = [BestModelSavingCallback()]
 
 
 trainer = IntervalTrainer(

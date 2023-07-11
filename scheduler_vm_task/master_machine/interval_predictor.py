@@ -1,14 +1,14 @@
 from ast import List
-from weather_data_utils import (
+from scheduler_vm_task.master_machine.weather_data_utils import (
     get_last_weather_data,
     get_points_over_country,
 )
-from co2_model import CO2Model
+from scheduler_vm_task.master_machine.co2_model import CO2Model
 import torch
 import numpy as np
 import datetime
-from electricitymaps_api import get_24h_history
-from utils import countryISOMapping, codes_with_steps, code_names
+from scheduler_vm_task.master_machine.electricitymaps_api import get_24h_history
+from scheduler_vm_task.master_machine.utils import countryISOMapping, codes_with_steps, code_names
 
 
 class CO2Predictor:
@@ -81,8 +81,8 @@ class CO2Predictor:
         batch = []
         for code, points in self.country_points:
             point_weather_matrices = []
-            # zone_emission = get_24h_history(code)
-            zone_emission = [0] * 24
+            zone_emission = get_24h_history(code)
+            # zone_emission = [0] * 24
             for longitude, latitude in points:
                 point_weather = get_last_weather_data(
                     latitude=10,
@@ -121,55 +121,72 @@ class IntervalGenerator:
     def __init__(self, zone_names=None) -> None:
         self.zone_names = dict(zip(list(range(len(zone_names))), zone_names))
         self.zone_names[-1] = -1
+        self.zone_to_id = dict(zip(zone_names, list(range(len(zone_names)))))
+
 
     def generate_intervals(
         self,
         forecasts,
         current_machine=0,
-        min_step_size=1,
+        min_interval_size=1,
         max_window_size=3,
         max_emission_value=180,
         co2_delta_to_move=30,
+        exclude_zones : List = [],
+        include_zones : List = []
     ):
         """
-        This function predicts training intervals.
-        Uses co2_predictors to forecast co2 emission, than builds intervals with minimum total emission.
+        This function generates training intervals.
+        Uses co2_predictor's forecasted co2 emission to build intervals with minimum total emission.
         """
+
+        assert len(forecasts) == len(self.zone_names) - 1
+
+        if len(include_zones) > 0:
+            exclude_zones = [k for k in self.zone_to_id.keys() if k not in include_zones]
+
+        if len(exclude_zones) > 0:
+            for z in exclude_zones:
+                forecasts[self.zone_to_id[z]] = 1e9
+
+        
+
 
         time_slots = np.zeros((len(forecasts), 24), dtype=int)
 
         for forecast_id, forecast in enumerate(forecasts):
             for window_size in range(max_window_size):
                 for i in range(len(forecast)):
-                    co2_mean = forecast[i : i + min_step_size + window_size].mean()
+                    co2_mean = forecast[i : i + min_interval_size + window_size].mean()
                     if co2_mean < max_emission_value:
                         time_slots[
-                            forecast_id, i : i + min_step_size + window_size - 1
+                            forecast_id, i : i + min_interval_size + window_size - 1
                         ] = 1
 
         time_slots_vms = np.ones((24), dtype=int) * -1
 
         i = 0
-        current_vm_idx = 0
+        current_vm_idx = current_machine
 
-        while i + min_step_size <= 24:
+        while i + min_interval_size <= 24:
             if time_slots[:, i].sum() == 0:
                 i += 1
                 continue
 
-            possible_vms = time_slots[:, i : i + min_step_size].all(1)
+            possible_vms = time_slots[:, i : i + min_interval_size].all(1)
             if possible_vms.sum() == 1:
                 time_slots_vms[
-                    i : i + min_step_size
+                    i : i + min_interval_size
                 ] = current_vm_idx = possible_vms.argmax()
-                i += min_step_size
+                i += min_interval_size
             else:
-                co2_mean = forecasts[:, i : i + min_step_size].mean(axis=1)
+                co2_mean = forecasts[:, i : i + min_interval_size].mean(axis=1)
                 co2_mean += (~possible_vms) * 1e9
                 co2_mean[current_vm_idx] -= co2_delta_to_move
-                min_co2_idx = co2_mean.argmin()
-                time_slots_vms[i : i + min_step_size] = min_co2_idx
-                i += min_step_size
+                min_co2_idx = current_vm_idx = co2_mean.argmin()
+                time_slots_vms[i : i + min_interval_size] = min_co2_idx
+                i += min_interval_size
+                
 
         current_vm = -1
         intervals = {}

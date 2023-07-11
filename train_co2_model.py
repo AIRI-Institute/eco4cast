@@ -1,4 +1,4 @@
-from co2_model import CO2Model
+from scheduler_vm_task.master_machine.co2_model import CO2Model
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
