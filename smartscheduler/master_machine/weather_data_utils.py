@@ -3,8 +3,8 @@ import datetime
 import numpy as np
 import pandas as pd
 import requests
-import cartopy.io.shapereader as shpreader
-from shapely import Point
+# import cartopy.io.shapereader as shpreader
+# from shapely import Point
 from itertools import product
 import json
 
@@ -138,51 +138,51 @@ def join_datasets(
     return dataframe, emission_dataframe
 
 
-def get_points_over_country(country_code: str, points_step: float):
-    """
-    This function makes a grid of points over a country.
+# def get_points_over_country(country_code: str, points_step: float):
+#     """
+#     This function makes a grid of points over a country.
 
-    Args:
-        country_code (str) : country ISO-3 code. Look for country code: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
-        points_step (float) : distance between points in a grid in degrees.
+#     Args:
+#         country_code (str) : country ISO-3 code. Look for country code: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
+#         points_step (float) : distance between points in a grid in degrees.
 
-    Returns:
-        List (longitude, latitude) : Evenly spaced points.
+#     Returns:
+#         List (longitude, latitude) : Evenly spaced points.
 
-    """
-    shpfilename = shpreader.natural_earth(
-        resolution="10m", category="cultural", name="admin_0_countries"
-    )
-    reader = shpreader.Reader(shpfilename)
-    countries = reader.records()
+#     """
+#     shpfilename = shpreader.natural_earth(
+#         resolution="10m", category="cultural", name="admin_0_countries"
+#     )
+#     reader = shpreader.Reader(shpfilename)
+#     countries = reader.records()
 
-    for country in countries:
-        if country.attributes["ADM0_A3"] == country_code:
-            break
+#     for country in countries:
+#         if country.attributes["ADM0_A3"] == country_code:
+#             break
 
-    min_longitude, min_latitude, max_longitude, max_latitude = country.geometry.bounds
+#     min_longitude, min_latitude, max_longitude, max_latitude = country.geometry.bounds
 
-    points = []
-    for longitude, latitude in product(
-        np.arange(min_longitude, max_longitude, points_step),
-        np.arange(min_latitude, max_latitude, points_step),
-    ):
-        # checking points in the grid (within country boundaries) with step = points_step
-        if Point((longitude, latitude)).within(country.geometry):
-            points.append((longitude, latitude))
-        else:
-            # check if we can move point a bit
-            max_shift = points_step / 5
-            for long_dif, lat_dif in product(
-                np.linspace(-max_shift, max_shift, 3), repeat=2
-            ):
-                if Point((longitude + long_dif, latitude + lat_dif)).within(
-                    country.geometry
-                ):
-                    points.append((longitude + long_dif, latitude + lat_dif))
-                    break
+#     points = []
+#     for longitude, latitude in product(
+#         np.arange(min_longitude, max_longitude, points_step),
+#         np.arange(min_latitude, max_latitude, points_step),
+#     ):
+#         # checking points in the grid (within country boundaries) with step = points_step
+#         if Point((longitude, latitude)).within(country.geometry):
+#             points.append((longitude, latitude))
+#         else:
+#             # check if we can move point a bit
+#             max_shift = points_step / 5
+#             for long_dif, lat_dif in product(
+#                 np.linspace(-max_shift, max_shift, 3), repeat=2
+#             ):
+#                 if Point((longitude + long_dif, latitude + lat_dif)).within(
+#                     country.geometry
+#                 ):
+#                     points.append((longitude + long_dif, latitude + lat_dif))
+#                     break
 
-    return points
+#     return points
 
 
 def get_multiple_historic_data(
@@ -446,38 +446,3 @@ def get_multiple_last_weather_data(
     return weather_data, weather_time_data, emission_df
 
 
-
-
-if __name__ == "__main__":
-    denmark_points = get_points_over_country("DNK", 0.5)
-    assert len(denmark_points) == 40
-
-    year_start = "2023"
-    month_start = "01"
-    day_start = "31"
-
-    year_end = "2023"
-    month_end = "03"
-    day_end = "02"
-
-    weather_points_dataset, datetimes, emission_df = get_multiple_historic_data(
-        denmark_points,
-        year_start=year_start,
-        month_start=month_start,
-        day_start=day_start,
-        year_end=year_end,
-        month_end=month_end,
-        day_end=day_end,
-        include_weathercode=True,
-        co2_emission_delta_days=1,
-    )
-
-    assert datetimes.shape[0] == weather_points_dataset.shape[0]
-
-    # if emission_df is None:
-    #     emission_df = get_emission_data(
-    #         year_start, month_start, day_start, year_end, month_end, day_end)
-    #     emission_df = average_emission_data(emission_df)
-
-    print(emission_df.shape, weather_points_dataset.shape)
-    assert emission_df.shape[0] == weather_points_dataset.shape[0]

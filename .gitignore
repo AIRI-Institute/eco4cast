@@ -1,16 +1,6 @@
-*.pickle
 __pycache__
 .vscode
 *.pth
-*.npy
-*.png
-lightning_logs
-wandb
-SmartScheduler
-Копия_weather.ipynb
-*.ckpt
 application_default_credentials.json
-mnist_data
-MNIST_example_emissions
 venv
 blabla.ipynb

@@ -1,15 +1,21 @@
 from ast import List
 from smartscheduler.master_machine.weather_data_utils import (
     get_last_weather_data,
-    get_points_over_country,
+    # get_points_over_country,
 )
 from smartscheduler.master_machine.co2_model import CO2Model
 import torch
 import numpy as np
 import datetime
 from smartscheduler.master_machine.electricitymaps_api import get_24h_history
-from smartscheduler.master_machine.utils import countryISOMapping, codes_with_steps, code_names
-
+from smartscheduler.master_machine.utils import (
+    countryISOMapping,
+    codes_with_steps,
+    code_names,
+)
+import pickle
+import importlib.resources
+from . import data_files
 
 class CO2Predictor:
     """
@@ -31,14 +37,15 @@ class CO2Predictor:
         self.predict_window = 24  # Model-specific parameter
         self.co2_emission_delta_days = 0  # Model-specific parameter
 
+        self.data_path = importlib.resources.files(data_files)
         if checkpoint_file_path is None:
-            self.load_model()
-        else:
-            self.load_model(checkpoint_file_path=checkpoint_file_path)
+            checkpoint_file_path = self.data_path / 'co2_model.ckpt'
+        self.load_model(checkpoint_file_path=checkpoint_file_path)
+        
 
     def load_model(
         self,
-        checkpoint_file_path="SmartScheduler/ya6oc29o/checkpoints/epoch=5-step=14892.ckpt",
+        checkpoint_file_path,
     ):
         """
         This function loads model for predicting time intervals.
@@ -65,13 +72,17 @@ class CO2Predictor:
 
         self.zones_with_steps = codes_with_steps
 
-        self.country_points = []
-        for code, points_step in self.zones_with_steps:
-            points = get_points_over_country(
-                country_code=countryISOMapping[code.split("-")[0]],
-                points_step=points_step,
-            )
-            self.country_points.append((code, points))
+        with open(self.data_path / 'country_points.pickle', 'rb') as f:
+            self.country_points = pickle.load(f)
+
+        # self.country_points = []
+        # for code, points_step in self.zones_with_steps:
+        #     points = get_points_over_country(
+        #         country_code=countryISOMapping[code.split("-")[0]],
+        #         points_step=points_step,
+        #     )
+        #     self.country_points.append((code, points))
+
 
     def predict_co2(self):
         """
@@ -123,7 +134,6 @@ class IntervalGenerator:
         self.zone_names[-1] = -1
         self.zone_to_id = dict(zip(zone_names, list(range(len(zone_names)))))
 
-
     def generate_intervals(
         self,
         forecasts,
@@ -132,8 +142,8 @@ class IntervalGenerator:
         max_window_size=3,
         max_emission_value=180,
         co2_delta_to_move=30,
-        exclude_zones : List = [],
-        include_zones : List = []
+        exclude_zones: List = [],
+        include_zones: List = [],
     ):
         """
         This function generates training intervals.
@@ -143,14 +153,13 @@ class IntervalGenerator:
         assert len(forecasts) == len(self.zone_names) - 1
 
         if len(include_zones) > 0:
-            exclude_zones = [k for k in self.zone_to_id.keys() if k not in include_zones]
+            exclude_zones = [
+                k for k in self.zone_to_id.keys() if k not in include_zones
+            ]
 
         if len(exclude_zones) > 0:
             for z in exclude_zones:
                 forecasts[self.zone_to_id[z]] = 1e9
-
-        
-
 
         time_slots = np.zeros((len(forecasts), 24), dtype=int)
 
@@ -186,7 +195,6 @@ class IntervalGenerator:
                 min_co2_idx = current_vm_idx = co2_mean.argmin()
                 time_slots_vms[i : i + min_interval_size] = min_co2_idx
                 i += min_interval_size
-                
 
         current_vm = -1
         intervals = {}
