@@ -1,10 +1,6 @@
-# pip install -r compute/client_library/requirements.txt
-
 # https://cloud.google.com/docs/authentication/application-default-credentials
 # Put it near notebook file
 
-import os
-from pathlib import Path
 import time
 from smartscheduler.master_machine.compute.client_library.snippets.instances.get import get_instance
 from smartscheduler.master_machine.compute.client_library.snippets.disks.autodelete_change import set_disk_autodelete
@@ -38,12 +34,6 @@ def google_cloud_move_vm(
     if new_instance_name is None:
         new_instance_name = current_instance_name
 
-
-    # current_zone = "us-west1-b"
-    # current_zone = "europe-southwest1-a"
-    # current_instance_name = "vm"
-    # project_id = "test-smart-scheduler"
-
     instance = get_instance(
         project_id=project_id, zone=current_zone, instance_name=current_instance_name
     )
@@ -73,9 +63,6 @@ def google_cloud_move_vm(
 
     delete_disk(project_id=project_id, zone=current_zone, disk_name=disk.device_name)
 
-    # new_zone = "europe-southwest1-a"
-    # new_zone = "us-west1-b"
-
     new_disk = create_disk_from_snapshot(
         project_id=project_id,
         zone=new_zone,
@@ -85,7 +72,6 @@ def google_cloud_move_vm(
         snapshot_link=snapshot.self_link,
     )
 
-    # new_instance_name = "vm"
 
     def create_with_existing_disks(
         project_id: str,
@@ -135,7 +121,6 @@ def google_cloud_move_vm(
     )
 
    
-
     delete_snapshot(project_id=project_id, snapshot_name=snapshot_name)
 
     end_time = time.time()

@@ -111,6 +111,13 @@ intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 
 load_states = args.load_states
 
 
+# load_states = False
+# intervals = [(
+#     datetime.datetime(2023, 7, 13, 7, 15, tzinfo=datetime.timezone.utc),
+#     datetime.datetime(2023, 7, 14, 5, 10, tzinfo=datetime.timezone.utc),
+# )]
+
+
 # callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]
 callbacks = [BestModelSavingCallback()]
 
@@ -122,7 +129,7 @@ trainer = IntervalTrainer(
     loss_function=nn.CrossEntropyLoss(),
     metric_func=accuracy,
     val_step=None,
-    show_val_progressbar=True,
+    show_progressbar=True,
     epochs=20,
     device="cpu",
     callbacks=callbacks,

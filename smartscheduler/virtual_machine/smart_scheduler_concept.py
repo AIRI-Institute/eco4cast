@@ -35,7 +35,7 @@ class IntervalTrainer:
         val_step=None,
         batch_size=8,
         device="cpu",
-        show_val_progressbar=True,
+        show_progressbar=True,
         callbacks: List = None,
         project_name="noname_project",
         country_code_alpha_2=None,
@@ -84,7 +84,7 @@ class IntervalTrainer:
         self.train_metric = 0
         self.val_metric = 0
         self.best_val_metric = 1e9
-        self.show_val_progressbar = show_val_progressbar
+        self.show_progressbar = show_progressbar
 
         self.fabric = Fabric(accelerator=self.device, callbacks=callbacks)
         self.train_dataloader, self.val_dataloader = self.fabric.setup_dataloaders(
@@ -154,9 +154,14 @@ class IntervalTrainer:
 
     def __train_epoch(self, end_time):
         self.model.train()
-        train_progress_bar = CustomStartProgressBar(
-            len(self.train_dataloader), self.last_train_batch_idx, description="Train"
+        train_progress_bar = (
+            CustomStartProgressBar(
+                len(self.train_dataloader), self.last_train_batch_idx, description="Train"
+            )
+            if self.show_progressbar
+            else lambda: None
         )
+
         if self.training_state == "train_val":
             self.__val_epoch(end_time)
 
@@ -211,7 +216,7 @@ class IntervalTrainer:
             CustomStartProgressBar(
                 len(self.val_dataloader), self.last_val_batch_idx, description="Val"
             )
-            if self.show_val_progressbar
+            if self.show_progressbar
             else lambda: None
         )
         self.fabric.call("on_validation_epoch_start", self)
@@ -354,98 +359,3 @@ class IntervalTrainer:
 
                 del self.emission_tracker
 
-
-# class SmartSchedulerTrainer:
-#     """
-#     We can implement this class so that it trains a trainer with BackgroundScheduler(https://apscheduler.readthedocs.io/en/3.x/modules/schedulers/background.html)
-#     or normally, like usual training process.
-#     """
-
-#     def __init__(
-#         self,
-#         trainer: IntervalTrainer,
-#         interval_predictor,
-#     ):
-#         self.trainer = trainer
-#         self.interval_predictor = interval_predictor
-#         pass
-
-#     def train(self, time_period=3, min_interval=1, max_emission_value=100.0):
-#         """
-#         This func to start trainer on forecasted intervals by interval_predictor
-#         Args:
-#             time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
-#             min_interval (int) : minimal training interval in hours
-#             max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
-#         """
-#         self.intervals = self.interval_predictor.predict_intervals(
-#             time_period=time_period,
-#             min_interval=min_interval,
-#             max_emission_value=max_emission_value,
-#         )
-#         self.trainer.train(self.intervals)
-
-
-# class SmartSchedulerFunction:
-#     """ """
-
-#     def __init__(self, function, interval_predictor):
-#         self.function = function
-#         self.interval_predictor = interval_predictor
-#         self.__scheduler = BackgroundScheduler(
-#             misfire_grace_time=None,
-#             job_defaults={"misfire_grace_time": None},
-#         )
-
-#     def predict_intervals(
-#         self, time_period=3, min_interval=1, max_emission_value=100.0
-#     ):
-#         """
-#         This function predicts intervals using model for predicting intervals(firstly, it needs to load weather and emission data).
-#         Returns intervals, saves intervals to the parameter self.intervals
-
-#         Args:
-#             time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
-#             min_interval (int) : minimal training interval in hours
-#             max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
-#         """
-
-#         datetime_intervals = self.interval_predictor.predict_intervals(
-#             time_period, min_interval, max_emission_value
-#         )
-#         self.intervals = datetime_intervals
-#         return datetime_intervals
-
-#     def start(self):
-#         """
-#         This function may call either start or schedule. No matter.
-#         It starts function running.
-#         """
-
-#         self.__scheduler.start()
-#         for start_interval, end_interval in self.intervals:
-#             print(f"Scheduling {start_interval} - {end_interval} job")
-#             trigger = DateTrigger(run_date=start_interval)
-#             self.__scheduler.add_job(
-#                 func=self.__train_loop,
-#                 trigger=trigger,
-#                 args=[end_interval],
-#                 id=f"job",
-#             )
-
-#             waiting_till = end_interval + datetime.timedelta(seconds=5)
-#             try:
-#                 while datetime.datetime.now(datetime.timezone.utc) < waiting_till:
-#                     sleep(1)
-#             except (KeyboardInterrupt, SystemExit):
-#                 print("\n", "KeyboardInterrupt caught. Stopping scheduled jobs")
-#                 self.__scheduler.remove_all_jobs()
-#                 self.__scheduler.shutdown(wait=False)
-#                 break
-
-#     def stop(self):
-#         """
-#         This method stops running a function.
-#         """
-#         self.__scheduler.remove_all_jobs()
-#         self.__scheduler.shutdown(wait=False)
