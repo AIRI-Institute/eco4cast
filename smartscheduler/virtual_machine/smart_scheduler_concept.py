@@ -3,8 +3,6 @@ import torch
 from torch import nn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
-
-# from interval_predictor import IntervalPredictor
 from smartscheduler.virtual_machine.utils import ResumableRandomSampler, CustomStartProgressBar
 from torch.utils.data import DataLoader
 import datetime
@@ -17,29 +15,6 @@ import eco2ai
 import os
 
 
-"""
-Что должен делать SmartScheduler:
-1) Должен принимать в качестве параметров интервалы времени, модель, датасет, лосс, оптимайзер и тд. У нас будет свой trainer, который будет гонять модель. 
-Класс SmartScheduler'а будет обучать модель по батчам на данных ему интервалах нужное число эпох. 
-    Плюсы: 
-        - Можно будет обучать модель не по эпохам, а по батчам, то есть, одна итерация в цикле обучения - это не эпоха, а батч. 
-        Это поможет быть более гибкими в плане интервалов обучения, так как обучение на одном батче обычно не превышает минуты
-        - Гибкость настройки. У пользователя будет возможность настроить SmartScheduler под себя
-    Минусы: 
-        - Сложно в плане разработки. Придется ввести поддержку callback'ов, чтобы пользователи могли кастомизировать trainer.
-        Придется ввести очень много условий в trainer, чтобы его функционал мог удовлетворить нуждам большинства пользователей
-        - Сложно в плане пользования. При необходимости модифицировать trainer придется потратить немалое время.
-        Это может быть проблематичным для некоторых пользователей. 
-
-2) Должен принимать на вход функцию и ее аргументы. SmartScheduler будет запускать функцию столько раз, сколько потребуется, или пока не закончатся интервалы времени
-    Плюсы: 
-        - Относительно легко в реализции. Нам просто надо реализовать executor, который будет запускать данную ему функцию в данные ему интервалы времени. 
-        - Простота в использовании
-    Минусы: 
-        - Отсутсвие гибкости. В случае машинного обучения подаваемой функцией будет эпоха(почти наверно), а эпоха иногда очень долго обучается. 
-        Это значит, что накладывается соответствующее ограничение на длину интервала для обучения
-"""
-
 
 class IntervalTrainer:
     """
@@ -47,14 +22,11 @@ class IntervalTrainer:
     It trains model during datetime intervals using BackgroundScheduler
     """
 
-    # TODO : some usage of test dataset or delete it?
-
     def __init__(
         self,
         model: torch.nn.Module,
         train_dataset: torch.utils.data.Dataset,
         val_dataset: torch.utils.data.Dataset,
-        test_dataset: torch.utils.data.Dataset,
         loss_function: torch.nn.Module,
         metric_func,
         optimizer: torch.optim.Optimizer = torch.optim.Adam,
@@ -81,7 +53,6 @@ class IntervalTrainer:
         self.model_arch = model.to("cpu")
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
-        self.test_dataset = test_dataset
 
         self.loss_function = loss_function
         self.epochs = epochs
@@ -104,8 +75,8 @@ class IntervalTrainer:
         self.has_states_to_load = False
 
         self.__scheduler = BackgroundScheduler(
-            misfire_grace_time=3600,
-            job_defaults={"misfire_grace_time": 3600},
+            misfire_grace_time=7200,
+            job_defaults={"misfire_grace_time": 7200},
         )
         self.device = device
         self.val_loss = 0
@@ -384,97 +355,97 @@ class IntervalTrainer:
                 del self.emission_tracker
 
 
-class SmartSchedulerTrainer:
-    """
-    We can implement this class so that it trains a trainer with BackgroundScheduler(https://apscheduler.readthedocs.io/en/3.x/modules/schedulers/background.html)
-    or normally, like usual training process.
-    """
+# class SmartSchedulerTrainer:
+#     """
+#     We can implement this class so that it trains a trainer with BackgroundScheduler(https://apscheduler.readthedocs.io/en/3.x/modules/schedulers/background.html)
+#     or normally, like usual training process.
+#     """
 
-    def __init__(
-        self,
-        trainer: IntervalTrainer,
-        interval_predictor,
-    ):
-        self.trainer = trainer
-        self.interval_predictor = interval_predictor
-        pass
+#     def __init__(
+#         self,
+#         trainer: IntervalTrainer,
+#         interval_predictor,
+#     ):
+#         self.trainer = trainer
+#         self.interval_predictor = interval_predictor
+#         pass
 
-    def train(self, time_period=3, min_interval=1, max_emission_value=100.0):
-        """
-        This func to start trainer on forecasted intervals by interval_predictor
-        Args:
-            time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
-            min_interval (int) : minimal training interval in hours
-            max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
-        """
-        self.intervals = self.interval_predictor.predict_intervals(
-            time_period=time_period,
-            min_interval=min_interval,
-            max_emission_value=max_emission_value,
-        )
-        self.trainer.train(self.intervals)
+#     def train(self, time_period=3, min_interval=1, max_emission_value=100.0):
+#         """
+#         This func to start trainer on forecasted intervals by interval_predictor
+#         Args:
+#             time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
+#             min_interval (int) : minimal training interval in hours
+#             max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
+#         """
+#         self.intervals = self.interval_predictor.predict_intervals(
+#             time_period=time_period,
+#             min_interval=min_interval,
+#             max_emission_value=max_emission_value,
+#         )
+#         self.trainer.train(self.intervals)
 
 
-class SmartSchedulerFunction:
-    """ """
+# class SmartSchedulerFunction:
+#     """ """
 
-    def __init__(self, function, interval_predictor):
-        self.function = function
-        self.interval_predictor = interval_predictor
-        self.__scheduler = BackgroundScheduler(
-            misfire_grace_time=None,
-            job_defaults={"misfire_grace_time": None},
-        )
+#     def __init__(self, function, interval_predictor):
+#         self.function = function
+#         self.interval_predictor = interval_predictor
+#         self.__scheduler = BackgroundScheduler(
+#             misfire_grace_time=None,
+#             job_defaults={"misfire_grace_time": None},
+#         )
 
-    def predict_intervals(
-        self, time_period=3, min_interval=1, max_emission_value=100.0
-    ):
-        """
-        This function predicts intervals using model for predicting intervals(firstly, it needs to load weather and emission data).
-        Returns intervals, saves intervals to the parameter self.intervals
+#     def predict_intervals(
+#         self, time_period=3, min_interval=1, max_emission_value=100.0
+#     ):
+#         """
+#         This function predicts intervals using model for predicting intervals(firstly, it needs to load weather and emission data).
+#         Returns intervals, saves intervals to the parameter self.intervals
 
-        Args:
-            time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
-            min_interval (int) : minimal training interval in hours
-            max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
-        """
+#         Args:
+#             time_period (int) : lenght of emission data history to use in interval prediction. And size of moving window
+#             min_interval (int) : minimal training interval in hours
+#             max_emission_value (float) : decision threshold for co2 emission. For example, historic mean value
+#         """
 
-        datetime_intervals = self.interval_predictor.predict_intervals(
-            time_period, min_interval, max_emission_value
-        )
-        self.intervals = datetime_intervals
-        return datetime_intervals
+#         datetime_intervals = self.interval_predictor.predict_intervals(
+#             time_period, min_interval, max_emission_value
+#         )
+#         self.intervals = datetime_intervals
+#         return datetime_intervals
 
-    def start(self):
-        """
-        This function may call either start or schedule. No matter.
-        It starts function running.
-        """
+#     def start(self):
+#         """
+#         This function may call either start or schedule. No matter.
+#         It starts function running.
+#         """
 
-        self.__scheduler.start()
-        for start_interval, end_interval in self.intervals:
-            print(f"Scheduling {start_interval} - {end_interval} job")
-            trigger = DateTrigger(run_date=start_interval)
-            self.__scheduler.add_job(
-                func=self.__train_loop,
-                trigger=trigger,
-                args=[end_interval],
-                id=f"job",
-            )
+#         self.__scheduler.start()
+#         for start_interval, end_interval in self.intervals:
+#             print(f"Scheduling {start_interval} - {end_interval} job")
+#             trigger = DateTrigger(run_date=start_interval)
+#             self.__scheduler.add_job(
+#                 func=self.__train_loop,
+#                 trigger=trigger,
+#                 args=[end_interval],
+#                 id=f"job",
+#             )
 
-            waiting_till = end_interval + datetime.timedelta(seconds=5)
-            try:
-                while datetime.datetime.now(datetime.timezone.utc) < waiting_till:
-                    sleep(1)
-            except (KeyboardInterrupt, SystemExit):
-                print("\n", "KeyboardInterrupt caught. Stopping scheduled jobs")
-                self.__scheduler.remove_all_jobs()
-                self.__scheduler.shutdown(wait=False)
-                break
+#             waiting_till = end_interval + datetime.timedelta(seconds=5)
+#             try:
+#                 while datetime.datetime.now(datetime.timezone.utc) < waiting_till:
+#                     sleep(1)
+#             except (KeyboardInterrupt, SystemExit):
+#                 print("\n", "KeyboardInterrupt caught. Stopping scheduled jobs")
+#                 self.__scheduler.remove_all_jobs()
+#                 self.__scheduler.shutdown(wait=False)
+#                 break
 
-    def stop(self):
-        """
-        This method stops running a function.
-        """
-        self.__scheduler.remove_all_jobs()
-        self.__scheduler.shutdown(wait=False)
+#     def stop(self):
+#         """
+#         This method stops running a function.
+#         """
+#         self.__scheduler.remove_all_jobs()
+#         self.__scheduler.shutdown(wait=False)

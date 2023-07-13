@@ -313,7 +313,7 @@ def get_last_weather_data(latitude, longitude, lookback_days=14, parameters=para
             response_string += parameter
     response = requests.get(response_string).content
     # print(response)
-    weather_dictionary = eval(response)
+    weather_dictionary = json.loads(response)
     dataframe = pd.DataFrame.from_dict(weather_dictionary["hourly"])
     dataframe["time"] = pd.to_datetime(dataframe["time"])
     current_time = datetime.datetime.now(datetime.timezone.utc)

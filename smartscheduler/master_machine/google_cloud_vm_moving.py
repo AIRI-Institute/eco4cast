@@ -6,20 +6,20 @@
 import os
 from pathlib import Path
 import time
-from compute.client_library.snippets.instances.get import get_instance
-from compute.client_library.snippets.disks.autodelete_change import set_disk_autodelete
-from compute.client_library.snippets.snapshots.create import create_snapshot
-from compute.client_library.snippets.instances.delete import delete_instance
-from compute.client_library.snippets.disks.delete import delete_disk
-from compute.client_library.snippets.disks.create_from_snapshot import (
+from smartscheduler.master_machine.compute.client_library.snippets.instances.get import get_instance
+from smartscheduler.master_machine.compute.client_library.snippets.disks.autodelete_change import set_disk_autodelete
+from smartscheduler.master_machine.compute.client_library.snippets.snapshots.create import create_snapshot
+from smartscheduler.master_machine.compute.client_library.snippets.instances.delete import delete_instance
+from smartscheduler.master_machine.compute.client_library.snippets.disks.delete import delete_disk
+from smartscheduler.master_machine.compute.client_library.snippets.disks.create_from_snapshot import (
     create_disk_from_snapshot,
 )
-from compute.client_library.snippets.instances.create_start_instance.create_with_existing_disks import (
+from smartscheduler.master_machine.compute.client_library.snippets.instances.create_start_instance.create_with_existing_disks import (
     create_instance,
     get_disk,
     compute_v1,
 )
-from compute.client_library.snippets.snapshots.delete import delete_snapshot
+from smartscheduler.master_machine.compute.client_library.snippets.snapshots.delete import delete_snapshot
 
 
 def google_cloud_move_vm(
@@ -28,13 +28,16 @@ def google_cloud_move_vm(
     project_id,
     new_zone,
     new_instance_name=None,
-    credentials_path=Path(os.getcwd()) / "application_default_credentials.json",
 ) -> compute_v1.Instance:
+    '''
+    Function that makes a snapshot of an instance, copies it to another Google Cloud zone. 
+    After that original instance is deleted and new one is created in new zone. 
+    '''
+
     start_time = time.time()
     if new_instance_name is None:
         new_instance_name = current_instance_name
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
     # current_zone = "us-west1-b"
     # current_zone = "europe-southwest1-a"
