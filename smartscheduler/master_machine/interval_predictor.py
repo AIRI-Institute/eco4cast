@@ -16,6 +16,8 @@ from smartscheduler.master_machine.utils import (
 import pickle
 import importlib.resources
 from . import data_files
+from smartscheduler.master_machine.utils import code_names
+
 
 class CO2Predictor:
     """
@@ -24,10 +26,13 @@ class CO2Predictor:
 
     def __init__(
         self,
+        electricity_maps_api_key : str,
         checkpoint_file_path=None,
+
     ) -> None:
         """
         Args:
+            electricity_maps_api_key : api key to access weather in electricity_maps regions
             (Optional) checkpoint_file_path (str) : path to file with torch model. If not provided - default model is used
         """
 
@@ -37,6 +42,7 @@ class CO2Predictor:
         if checkpoint_file_path is None:
             checkpoint_file_path = self.data_path / 'co2_model.ckpt'
         self.load_model(checkpoint_file_path=checkpoint_file_path)
+        self.electricity_maps_api_key = electricity_maps_api_key
         
 
     def load_model(
@@ -67,6 +73,8 @@ class CO2Predictor:
         with open(self.data_path / 'country_points.pickle', 'rb') as f:
             self.country_points = pickle.load(f)
 
+        
+
         # Saving option 
         # self.country_points = []
         # for code, points_step in self.zones_with_steps:
@@ -85,7 +93,7 @@ class CO2Predictor:
         batch = []
         for code, points in self.country_points:
             point_weather_matrices = []
-            zone_emission = get_24h_history(code)
+            zone_emission = get_24h_history(code, self.electricity_maps_api_key)
             # zone_emission = [0] * 24 # For testing purposes
             for longitude, latitude in points:
                 point_weather = get_last_weather_data(
@@ -122,7 +130,7 @@ class IntervalGenerator:
     (emission in interval less than threshold)
     """
 
-    def __init__(self, zone_names, max_emission_value = 180,
+    def __init__(self, zone_names = code_names, max_emission_value = 180,
             co2_delta_to_move = 30,
             min_interval_size = 1,
             max_window_size = 3) -> None:

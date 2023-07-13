@@ -5,13 +5,17 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "SmartScheduler"
 version = "0.0.4"
-description = "some info"
+description = "This package is designed to reduce CO2 emissions while training neural networks using Google Cloud."
+
 authors = ["Mikhail Tiutiulnikov <tiutiulnikov@airi.net>", 
             "Vladimir Lazarev <lazarev@airi.net>", 
             "Aleksei Korovin <korovin@airi.net>",
             "Semen Budennyi <budennyy@airi.net>"]
 readme = "README.md"
 packages = [{include = "smartscheduler"}]
+license = "MIT"
+repository = "https://github.com/AIRI-Institute/SmartScheduler"
+keywords = ["co2 emission", "google cloud", "pytorch"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
