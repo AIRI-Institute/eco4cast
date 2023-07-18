@@ -46,7 +46,7 @@ class IntervalTrainer:
             if None - validates model after training epoch
         metric_func: func
             This func returns float number to choose best model after validation
-        Other parameters are obvious and I won't describe it
+        Other parameters are obvious 
         """
         self.optimizer_class = optimizer
         self.lr = lr

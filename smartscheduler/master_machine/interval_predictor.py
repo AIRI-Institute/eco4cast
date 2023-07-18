@@ -1,7 +1,6 @@
 from ast import List
 from smartscheduler.master_machine.weather_data_utils import (
     get_last_weather_data,
-    # get_points_over_country,
 )
 from smartscheduler.master_machine.co2_model import CO2Model
 import torch
@@ -9,7 +8,6 @@ import numpy as np
 import datetime
 from smartscheduler.master_machine.electricitymaps_api import get_24h_history
 from smartscheduler.master_machine.utils import (
-    countryISOMapping,
     codes_with_steps,
     code_names,
 )
@@ -26,9 +24,8 @@ class CO2Predictor:
 
     def __init__(
         self,
-        electricity_maps_api_key : str,
+        electricity_maps_api_key: str,
         checkpoint_file_path=None,
-
     ) -> None:
         """
         Args:
@@ -40,10 +37,9 @@ class CO2Predictor:
 
         self.data_path = importlib.resources.files(data_files)
         if checkpoint_file_path is None:
-            checkpoint_file_path = self.data_path / 'co2_model.ckpt'
+            checkpoint_file_path = self.data_path / "co2_model.ckpt"
         self.load_model(checkpoint_file_path=checkpoint_file_path)
         self.electricity_maps_api_key = electricity_maps_api_key
-        
 
     def load_model(
         self,
@@ -70,20 +66,8 @@ class CO2Predictor:
 
         self.zones_with_steps = codes_with_steps
 
-        with open(self.data_path / 'country_points.pickle', 'rb') as f:
+        with open(self.data_path / "country_points.pickle", "rb") as f:
             self.country_points = pickle.load(f)
-
-        
-
-        # Saving option 
-        # self.country_points = []
-        # for code, points_step in self.zones_with_steps:
-        #     points = get_points_over_country(
-        #         country_code=countryISOMapping[code.split("-")[0]],
-        #         points_step=points_step,
-        #     )
-        #     self.country_points.append((code, points))
-
 
     def predict_co2(self):
         """
@@ -130,11 +114,16 @@ class IntervalGenerator:
     (emission in interval less than threshold)
     """
 
-    def __init__(self, zone_names = code_names, max_emission_value = 180,
-            co2_delta_to_move = 30,
-            min_interval_size = 1,
-            max_window_size = 3) -> None:
-
+    def __init__(
+        self,
+        zone_names=code_names,
+        max_emission_value=180,
+        co2_delta_to_move=30,
+        min_interval_size=1,
+        max_window_size=3,
+        exclude_zones=None,
+        include_zones=None,
+    ) -> None:
         self.zone_names = dict(zip(list(range(len(zone_names))), zone_names))
         self.zone_names[-1] = -1
         self.zone_to_id = dict(zip(zone_names, list(range(len(zone_names)))))
@@ -142,13 +131,13 @@ class IntervalGenerator:
         self.co2_delta_to_move = co2_delta_to_move
         self.min_interval_size = min_interval_size
         self.max_window_size = max_window_size
+        self.exclude_zones = exclude_zones
+        self.include_zones = include_zones
 
     def generate_intervals(
         self,
         forecasts,
         current_machine=0,
-        exclude_zones: List = [],
-        include_zones: List = [],
     ):
         """
         This function generates training intervals.
@@ -157,13 +146,13 @@ class IntervalGenerator:
 
         assert len(forecasts) == len(self.zone_names) - 1
 
-        if include_zones is not None and len(include_zones) > 0 :
-            exclude_zones = [
-                k for k in self.zone_to_id.keys() if k not in include_zones
+        if self.include_zones is not None and len(self.include_zones) > 0:
+            self.exclude_zones = [
+                k for k in self.zone_to_id.keys() if k not in self.include_zones
             ]
 
-        if exclude_zones is not None and len(exclude_zones) > 0:
-            for z in exclude_zones:
+        if self.exclude_zones is not None and len(self.exclude_zones) > 0:
+            for z in self.exclude_zones:
                 forecasts[self.zone_to_id[z]] = 1e9
 
         time_slots = np.zeros((len(forecasts), 24), dtype=int)
@@ -171,10 +160,13 @@ class IntervalGenerator:
         for forecast_id, forecast in enumerate(forecasts):
             for window_size in range(self.max_window_size):
                 for i in range(len(forecast)):
-                    co2_mean = forecast[i : i + self.min_interval_size + window_size].mean()
+                    co2_mean = forecast[
+                        i : i + self.min_interval_size + window_size
+                    ].mean()
                     if co2_mean < self.max_emission_value:
                         time_slots[
-                            forecast_id, i : i + self.min_interval_size + window_size - 1
+                            forecast_id,
+                            i : i + self.min_interval_size + window_size - 1,
                         ] = 1
 
         time_slots_vms = np.ones((24), dtype=int) * -1
@@ -263,5 +255,6 @@ class IntervalGenerator:
             for vm_idx, vm_intervals in formatted_intervals
         ]
 
-        return datetime_intervals, [vm_idx for vm_idx, vm_intervals in formatted_intervals]
-
+        return datetime_intervals, [
+            vm_idx for vm_idx, vm_intervals in formatted_intervals
+        ]

@@ -60,8 +60,6 @@ class Controller:
         intervals_prediction_period,
         co2_predictor: CO2Predictor,
         interval_generator: IntervalGenerator,
-        exclude_zones=None,
-        include_zones=None,
     ):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
@@ -71,12 +69,10 @@ class Controller:
         self.co2_forecast = self.co2_predictor.predict_co2()
         self.interval_generator = interval_generator
 
-        self.exclude_zones = exclude_zones
-        self.include_zones = include_zones
-
-        
-
-        self.predicted_intervals, self.zone_indices= self.interval_generator.generate_intervals(
+        (
+            self.predicted_intervals,
+            self.zone_indices,
+        ) = self.interval_generator.generate_intervals(
             forecasts=self.co2_forecast,
             exclude_zones=self.exclude_zones,
             include_zones=self.include_zones,
@@ -92,6 +88,7 @@ class Controller:
         self.project_id = project_id
         self.intervals_prediction_period = intervals_prediction_period
 
+        # FOR TESTING
         # self.predicted_intervals = [
         #     # (
         #     #     "FR",
@@ -190,7 +187,7 @@ class Controller:
                     forecasts=co2_forecast,
                     exclude_zones=self.exclude_zones,
                     include_zones=self.include_zones,
-                    current_machine=zone_idx
+                    current_machine=zone_idx,
                 )
                 interval_idx = 0
 

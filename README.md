@@ -20,7 +20,6 @@ Package can be installed using Pypi:
 pip install smartscheduler
 ```
 
-
 ## Usage example. Tutorial on training with MNIST <a name="3"></a>
 ### What you will need
 - Google Cloud account
@@ -108,7 +107,6 @@ This file consists of all the training process logic. Firstly it initializes pyt
 The main part of this file is IntervalTrainer class. This class uses custom pytorch logic so it can stop and resume training process on different VMs without losing any information. It even saves current batch info. So if your model has a large epoch time you can start it in one Google Cloud zone and continue it in another. 
 
 Of course you can modify `vm_main.py` as you want. Probably you will use your own dataset, so you have to load it to VM once and import it in `vm_main.py`.
-
 
 
 ## How to use package without Google Cloud. <a name="4"></a>
