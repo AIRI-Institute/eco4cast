@@ -38,7 +38,7 @@ class CO2Predictor:
 
     def load_model(
         self,
-        checkpoint_file_path="SmartScheduler/ya6oc29o/checkpoints/epoch=5-step=14892.ckpt",
+        checkpoint_file_path="co2_model.ckpt",
     ):
         """
         This function loads model for predicting time intervals.

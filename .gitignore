@@ -13,3 +13,8 @@ application_default_credentials.json
 mnist_data
 MNIST_example_emissions
 blabla.ipynb
+venv
+*.pt
+imagenet-object-localization-challenge.zip
+ImageNet_dataset
+imagenet_models

@@ -1,0 +1,2 @@
+id,project_name,experiment_description,epoch,start_time,duration(s),power_consumption(kWh),CO2_emissions(kg),CPU_name,GPU_name,OS,region/country,cost
+7ffec2ca-0c9d-42a6-a97e-6acd8bd0a590,ImageNet_emission,interval_training_13-07-2023-T1119,N/A,2023-07-18 13:37:51,14725.474621295929,0.8762536478612086,0.21079157752949235,"Intel(R) Xeon(R) Gold 6278C CPU @ 2.60GHz/1 device(s), TDP:185.0",Tesla V100-PCIE-32GB 1 device(s),Linux,RU/Moscow,0
