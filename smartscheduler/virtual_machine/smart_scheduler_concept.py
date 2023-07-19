@@ -3,7 +3,10 @@ import torch
 from torch import nn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
-from smartscheduler.virtual_machine.utils import ResumableRandomSampler, CustomStartProgressBar
+from smartscheduler.virtual_machine.utils import (
+    ResumableRandomSampler,
+    CustomStartProgressBar,
+)
 from torch.utils.data import DataLoader
 import datetime
 from time import sleep
@@ -13,7 +16,6 @@ from lightning.fabric import Fabric
 from lightning.fabric.utilities.types import _Stateful
 import eco2ai
 import os
-
 
 
 class IntervalTrainer:
@@ -46,7 +48,7 @@ class IntervalTrainer:
             if None - validates model after training epoch
         metric_func: func
             This func returns float number to choose best model after validation
-        Other parameters are obvious 
+        Other parameters are obvious
         """
         self.optimizer_class = optimizer
         self.lr = lr
@@ -61,12 +63,16 @@ class IntervalTrainer:
 
         self.train_sampler = ResumableRandomSampler(self.train_dataset)
         self.train_dataloader = DataLoader(
-            self.train_dataset, batch_size=batch_size, sampler=self.train_sampler
+            self.train_dataset,
+            batch_size=batch_size,
+            sampler=self.train_sampler,
         )
 
         self.val_sampler = ResumableRandomSampler(self.val_dataset)
         self.val_dataloader = DataLoader(
-            self.val_dataset, batch_size=batch_size, sampler=self.val_sampler
+            self.val_dataset,
+            batch_size=batch_size,
+            sampler=self.val_sampler,
         )
         self.training_state = "train"
         self.last_train_batch_idx = 0
@@ -137,7 +143,7 @@ class IntervalTrainer:
             self.last_val_batch_idx = checkpoint["last_val_batch_idx"]
             self.last_epoch = checkpoint["last_epoch"]
             self.project_name = checkpoint["project_name"]
-            self.callbacks = checkpoint['callbacks']
+            self.callbacks = checkpoint["callbacks"]
 
     def __save_states(self):
         self.has_states_to_load = True
@@ -156,7 +162,9 @@ class IntervalTrainer:
         self.model.train()
         train_progress_bar = (
             CustomStartProgressBar(
-                len(self.train_dataloader), self.last_train_batch_idx, description="Train"
+                len(self.train_dataloader),
+                self.last_train_batch_idx,
+                description="Train",
             )
             if self.show_progressbar
             else lambda: None
@@ -290,7 +298,7 @@ class IntervalTrainer:
             self.emission_tracker.stop()
             self.last_epoch = self.epochs + 1
 
-    def __init_emission_tracker(self, description):
+    def __init_emission_tracker(self, description=''):
         if not os.path.exists(f"{self.project_name}_emissions"):
             os.mkdir(f"{self.project_name}_emissions")
 
@@ -315,9 +323,7 @@ class IntervalTrainer:
         """
         self.has_states_to_load = load_states
         if datetime_intervals is None:
-            self.__init_emission_tracker(
-                f"default_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}"
-            )
+            self.__init_emission_tracker()
             self.__train_loop(
                 datetime.datetime(
                     year=2500, month=1, day=1, tzinfo=datetime.timezone.utc
@@ -330,9 +336,7 @@ class IntervalTrainer:
                 if self.last_epoch >= self.epochs:
                     break
 
-                self.__init_emission_tracker(
-                    f"interval_training_{datetime.datetime.utcnow().strftime('%d-%m-%Y-T%H%M')}"
-                )
+                self.__init_emission_tracker()
                 print(f"Scheduling {start_interval} - {end_interval} job")
                 trigger = DateTrigger(run_date=start_interval)
                 self.__scheduler.add_job(
@@ -358,4 +362,3 @@ class IntervalTrainer:
                     break
 
                 del self.emission_tracker
-

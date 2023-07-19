@@ -107,10 +107,9 @@ your_zone = 'FR'
 co2_predictor = CO2Predictor(electricity_maps_api_key)
 co2_forecast = co2_predictor.predict_co2()
 
-interval_generator=IntervalGenerator()
+interval_generator=IntervalGenerator(include_zones=[your_zone])
 predicted_intervals, zone_indices= interval_generator.generate_intervals(
             forecasts=co2_forecast,
-            include_zones=[your_zone],
         )
 
 load_states = False

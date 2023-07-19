@@ -55,39 +55,44 @@ class BestModelSavingCallback:
             )
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--times", type=str)
-parser.add_argument("--load_states", action="store_true")
-args = parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--times", type=str)
+# parser.add_argument("--load_states", action="store_true")
+# args = parser.parse_args()
 
-intervals = [
-    datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
-    for item in args.times.split(",")
-]
-intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
-load_states = args.load_states
+# intervals = [
+#     datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
+#     for item in args.times.split(",")
+# ]
+# intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
+# load_states = args.load_states
 
 
 
-transform = ResNet101_Weights.transforms
-train_dataset = datasets.ImageNet(
-    "imagenet_data", split='train', download=True, transform=transform
-)
-val_dataset = datasets.ImageNet(
-    "imagenet_data", split='train', download=True, transform=transform
-)
+transform = transforms.Compose([
+    transforms.Resize([256, 256]),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomVerticalFlip(),
+    transforms.ColorJitter(brightness=0.5, contrast=0),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+])
 
+dataset = datasets.ImageFolder(root='ImageNet_dataset/ILSVRC/Data/CLS-LOC/train',transform = transform)
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
 def accuracy(labels: torch.tensor, logits: torch.tensor):
     preds = logits.argmax(1)
     return (preds == labels).float().mean()
 
 
-# load_states = False
-# intervals = [(
-#     datetime.datetime(2023, 7, 18, 3, 00, tzinfo=datetime.timezone.utc),
-#     datetime.datetime(2023, 7, 30, 5, 10, tzinfo=datetime.timezone.utc),
-# )]
+load_states = False
+intervals = [(
+    datetime.datetime(2023, 7, 19, 2, 00, tzinfo=datetime.timezone.utc),
+    datetime.datetime(2023, 7, 30, 5, 10, tzinfo=datetime.timezone.utc),
+)]
 
 
 callbacks = [EarlyStoppingCallback(10), BestModelSavingCallback()]
@@ -106,6 +111,7 @@ trainer = IntervalTrainer(
     device="gpu",
     callbacks=callbacks,
     project_name="ImageNet_example",
+    batch_size=32,
 )
 
 
