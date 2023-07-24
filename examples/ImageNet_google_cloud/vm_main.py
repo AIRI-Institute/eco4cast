@@ -55,17 +55,17 @@ class BestModelSavingCallback:
             )
 
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument("--times", type=str)
-# parser.add_argument("--load_states", action="store_true")
-# args = parser.parse_args()
+parser = argparse.ArgumentParser()
+parser.add_argument("--times", type=str)
+parser.add_argument("--load_states", action="store_true")
+args = parser.parse_args()
 
-# intervals = [
-#     datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
-#     for item in args.times.split(",")
-# ]
-# intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
-# load_states = args.load_states
+intervals = [
+    datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
+    for item in args.times.split(",")
+]
+intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
+load_states = args.load_states
 
 
 
@@ -88,11 +88,15 @@ def accuracy(labels: torch.tensor, logits: torch.tensor):
     return (preds == labels).float().mean()
 
 
-load_states = False
-intervals = [(
-    datetime.datetime(2023, 7, 19, 2, 00, tzinfo=datetime.timezone.utc),
-    datetime.datetime(2023, 7, 30, 5, 10, tzinfo=datetime.timezone.utc),
-)]
+# load_states = False
+# intervals = [(
+#     datetime.datetime(2023, 7, 24, 10, 00, tzinfo=datetime.timezone.utc),
+#     datetime.datetime(2023, 7, 24, 10, 30, tzinfo=datetime.timezone.utc),
+# ),
+# (
+#     datetime.datetime(2023, 7, 24, 10, 31, tzinfo=datetime.timezone.utc),
+#     datetime.datetime(2023, 7, 30, 5, 10, tzinfo=datetime.timezone.utc),
+# )]
 
 
 callbacks = [EarlyStoppingCallback(10), BestModelSavingCallback()]
@@ -107,11 +111,12 @@ trainer = IntervalTrainer(
     metric_func=accuracy,
     val_step=None,
     show_progressbar=True,
-    epochs=50,
+    epochs=3,
     device="gpu",
     callbacks=callbacks,
     project_name="ImageNet_example",
     batch_size=32,
+    num_workers=6,
 )
 
 

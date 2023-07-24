@@ -41,6 +41,7 @@ class IntervalTrainer:
         callbacks: List = None,
         project_name="noname_project",
         country_code_alpha_2=None,
+        num_workers=1,
     ):
         """
         val_step: int
@@ -66,6 +67,8 @@ class IntervalTrainer:
             self.train_dataset,
             batch_size=batch_size,
             sampler=self.train_sampler,
+            num_workers=num_workers,
+            persistent_workers=True
         )
 
         self.val_sampler = ResumableRandomSampler(self.val_dataset)
@@ -73,6 +76,8 @@ class IntervalTrainer:
             self.val_dataset,
             batch_size=batch_size,
             sampler=self.val_sampler,
+            num_workers=num_workers,
+            persistent_workers=True
         )
         self.training_state = "train"
         self.last_train_batch_idx = 0
@@ -346,8 +351,10 @@ class IntervalTrainer:
                     id=f"job",
                 )
 
-                # 5 extra seconds for saving states
-                waiting_till = end_interval + datetime.timedelta(seconds=5)
+                # self.__train_loop(end_interval)
+
+                # 30 extra seconds for saving states
+                waiting_till = end_interval + datetime.timedelta(seconds=30)
                 try:
                     while (
                         datetime.datetime.now(datetime.timezone.utc) < waiting_till

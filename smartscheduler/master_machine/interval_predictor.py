@@ -137,7 +137,7 @@ class IntervalGenerator:
     def generate_intervals(
         self,
         forecasts,
-        current_machine=0,
+        current_zone_idx=0,
     ):
         """
         This function generates training intervals.
@@ -145,6 +145,9 @@ class IntervalGenerator:
         """
 
         assert len(forecasts) == len(self.zone_names) - 1
+
+        forecasts = np.copy(forecasts)
+        
 
         if self.include_zones is not None and len(self.include_zones) > 0:
             self.exclude_zones = [
@@ -172,7 +175,7 @@ class IntervalGenerator:
         time_slots_vms = np.ones((24), dtype=int) * -1
 
         i = 0
-        current_vm_idx = current_machine
+        current_vm_idx = current_zone_idx
 
         while i + self.min_interval_size <= 24:
             if time_slots[:, i].sum() == 0:
@@ -225,6 +228,8 @@ class IntervalGenerator:
         ]
         ordered_intervals = sorted(ordered_intervals, key=lambda x: x[1][0])
 
+        if len(ordered_intervals) == 0:
+            return [], current_zone_idx
         formatted_intervals = [(ordered_intervals[0][0], [ordered_intervals[0][1]])]
 
         for vm_idx, interval in ordered_intervals[1:]:

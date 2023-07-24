@@ -1,6 +1,7 @@
 import torch
 import tqdm
 from lightning.fabric.utilities.types import _Stateful
+import multiprocessing
 
 
 # https://stackoverflow.com/questions/60993677/how-can-i-save-pytorchs-dataloader-instance
@@ -9,46 +10,52 @@ class ResumableRandomSampler(torch.utils.data.Sampler, torch.nn.Module):
     If with replacement, then user can specify :attr:`num_samples` to draw.
     Arguments:
         data_source (Dataset): dataset to sample from
-        replacement (bool): samples are drawn on-demand with replacement if ``True``, default=``False``
-        num_samples (int): number of samples to draw, default=`len(dataset)`. This argument
-            is supposed to be specified only when `replacement` is ``True``.
-        generator (Generator): Generator used in sampling.
     """
 
     def __init__(self, data_source):
         self.data_source = data_source
         self.generator = torch.Generator()
-        self.generator.manual_seed(47)
+        self.generator.manual_seed(42)
 
-        self.perm_index = 0
-        self.perm = torch.randperm(self.num_samples, generator=self.generator)
+        # self.perm_index = 0
+        self.perm_index = multiprocessing.Value("i", 0)
+
+        self.perm = multiprocessing.Array(
+            "i", torch.randperm(self.num_samples, generator=self.generator)
+        )
 
     @property
     def num_samples(self) -> int:
         return len(self.data_source)
 
     def __iter__(self):
-        if self.perm_index >= len(self.perm):
-            self.perm_index = 0
-            self.perm = torch.randperm(self.num_samples, generator=self.generator)
+        if self.perm_index.value >= len(self.perm):
+            with self.perm_index.get_lock():
+                self.perm_index.value = 0
 
-        while self.perm_index < len(self.perm):
-            self.perm_index += 1
-            yield self.perm[self.perm_index - 1]
+            self.perm = multiprocessing.Array(
+                "i", torch.randperm(self.num_samples, generator=self.generator)
+            )
+
+        while self.perm_index.value < len(self.perm):
+            with self.perm_index.get_lock():
+                self.perm_index.value += 1
+
+            yield self.perm[self.perm_index.value - 1]
 
     def __len__(self):
         return self.num_samples
 
     def state_dict(self):
         return {
-            "perm": self.perm,
-            "perm_index": self.perm_index,
+            "perm": list(self.perm),
+            "perm_index": self.perm_index.value,
             "generator_state": self.generator.get_state(),
         }
 
     def load_state_dict(self, state, strict=True):
-        self.perm = state["perm"]
-        self.perm_index = state["perm_index"]
+        self.perm = multiprocessing.Array("i", state["perm"])
+        self.perm_index.value = state["perm_index"]
         self.generator.set_state(state["generator_state"])
 
 
