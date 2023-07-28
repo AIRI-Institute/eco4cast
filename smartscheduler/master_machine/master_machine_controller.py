@@ -74,8 +74,6 @@ class Controller:
             self.zone_indices,
         ) = self.interval_generator.generate_intervals(
             forecasts=self.co2_forecast,
-            exclude_zones=self.exclude_zones,
-            include_zones=self.include_zones,
         )
 
         self.ssh_username = ssh_username
@@ -162,21 +160,30 @@ class Controller:
             )
 
             try:
-                for line in iter(stdout.readline, ""):
-                    print(line, end="")
-                    if "Traceback" in line:
-                        pass
-                    if "End of training." in line:
-                        print("Stopping master machine")
-                        shutting = True
+                out = b''
+                while True:
+                    step = 500
+                    out = out + stdout.read(step)
+                    if out == b'':
                         break
-
+                    try:
+                        line = out.decode()
+                        print(line, end='\r')
+                        out = b''
+                        if "Traceback" in line:
+                            pass
+                        if "End of training." in line:
+                            print("Stopping master machine")
+                            shutting = True
+                            break
+                    except UnicodeDecodeError:
+                        out = out
             except KeyboardInterrupt:
-                channel.send("\x03")  # Ctrl-C
+                channel.send("\x03")
                 for line in iter(stdout.readline, ""):
                     print(line, end="")
-                print("Interrupted")
-                break
+                print('Interrupted')
+            
             interval_idx += 1
             if datetime.datetime.now() > self.last_prediction_time + datetime.timedelta(
                 seconds=self.intervals_prediction_period
