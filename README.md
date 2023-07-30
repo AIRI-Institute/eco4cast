@@ -12,7 +12,7 @@
 ## About SmartScheduler :clipboard: <a name="1"></a> 
 This package is designed to reduce CO2 emissions while training neural network models. The main idea of the package is to run the learning process at certain time intervals on certain Google Cloud servers with minimal emissions. A neural network (TCN) trained on the historical data of 13 zones is used to predict emissions for 24 hours ahead.
 
-Current supported Google Cloud zones: 'southamerica-east1-b', 'northamerica-northeast2-b', 'europe-west6-b', 'europe-west3-b', 'europe-central2-b', 'europe-west1-b', 'europe-west8-a', 'northamerica-northeast1-b', 'europe-southwest1-c', 'europe-west2-b', 'europe-north1-b', 'europe-west9-b',  'europe-west4-b' .
+Currently supported Google Cloud zones: 'southamerica-east1-b', 'northamerica-northeast2-b', 'europe-west6-b', 'europe-west3-b', 'europe-central2-b', 'europe-west1-b', 'europe-west8-a', 'northamerica-northeast1-b', 'europe-southwest1-c', 'europe-west2-b', 'europe-north1-b', 'europe-west9-b',  'europe-west4-b' .
 
 ## Installation <a name="2"></a> 
 Package can be installed using Pypi:
@@ -64,7 +64,7 @@ Connect to VM SSH and do folowing steps.
 ```
 python3 -m venv venv
 source venv/bin/activate
-pip instal smartscheduler
+pip install smartscheduler
 pip install torchvision  # Installation needed for MNIST
 ```
 
@@ -78,20 +78,19 @@ Download file vm_main.py from github (can be found in `examples` folder).
 This is the main file which includes all the training process logic. Here you can choose what callbacks will be used, what kind of model, dataset and all the parameters. 
 
 
-### Step 7. Copy vm_main.py to VM
+### Step 8. Copy vm_main.py to VM
 ```
 scp vm_main.py scheduler@your_ip:scheduler_task/
 ```
 
 
-### Step 8. Run task on your Master machine
+### Step 9. Run task on your Master machine
 Download example `master_machine_main.py` from examples folder on our github. Edit some VM info in file (current ip adress, zone, your project name, instance name).
 And after that you are ready to start the training!
 ```
 python master_machine_main.py
 ```
 
-Due to paramiko package restrictions tqdm progress bar can't be shown during process. It only shows when the epoch (training or validation) is finished.
 
 
 ### Example files details

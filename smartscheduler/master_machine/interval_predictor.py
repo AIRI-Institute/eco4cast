@@ -60,7 +60,7 @@ class CO2Predictor:
             optimizer_hparams={"lr": 1e-3, "weight_decay": 1e-4},
         )
         self.predict_model = self.predict_model.load_from_checkpoint(
-            checkpoint_file_path
+            checkpoint_file_path, map_location=torch.device("cpu")
         )
         self.predict_model = self.predict_model.to("cpu").eval()
 
@@ -230,6 +230,7 @@ class IntervalGenerator:
 
         if len(ordered_intervals) == 0:
             return [], current_zone_idx
+        
         formatted_intervals = [(ordered_intervals[0][0], [ordered_intervals[0][1]])]
 
         for vm_idx, interval in ordered_intervals[1:]:
@@ -253,7 +254,8 @@ class IntervalGenerator:
                             minute=0, second=0, microsecond=0
                         )
                         + datetime.timedelta(hours=int(jend)),
-                    )
+                        forecasts[vm_idx, jstart : jend].mean()
+                    ) 
                     for jstart, jend in vm_intervals
                 ],
             )

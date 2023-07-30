@@ -100,6 +100,7 @@ class BestModelSavingCallback:
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--times", type=str)
+parser.add_argument("--co2_means", type=str)
 parser.add_argument("--load_states", action="store_true")
 args = parser.parse_args()
 
@@ -110,11 +111,14 @@ intervals = [
 intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
 load_states = args.load_states
 
+co2_means = [float(item) for item in args.co2_means.split(",")]
 
 # load_states = False
+
 # intervals = [(
-#     datetime.datetime(2023, 7, 13, 7, 15, tzinfo=datetime.timezone.utc),
-#     datetime.datetime(2023, 7, 14, 5, 10, tzinfo=datetime.timezone.utc),
+#     datetime.datetime(2023, 7, 28, 12, 15, tzinfo=datetime.timezone.utc),
+#     datetime.datetime(2023, 7, 31, 5, 10, tzinfo=datetime.timezone.utc),
+#     100
 # )]
 
 
@@ -137,4 +141,4 @@ trainer = IntervalTrainer(
 )
 
 
-trainer.train(intervals, load_states)
+trainer.train(intervals, load_states, co2_means)

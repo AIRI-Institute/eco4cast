@@ -12,37 +12,7 @@ from smartscheduler.master_machine.compute.client_library.snippets.instances.sto
 from smartscheduler.master_machine.google_cloud_vm_moving import google_cloud_move_vm
 from smartscheduler.master_machine.utils import codes_to_gcloud_zones
 import time
-
-
-def setup_ssh_execution(
-    ip,
-    ssh_port,
-    python_path,
-    vm_main_path,
-    username="scheduler",
-    command=None,
-    command_arguments="",
-):
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh_client.connect(hostname=ip, port=ssh_port, username=username, timeout=10)
-
-    vm_main_folder = "/".join(vm_main_path.split("/")[:-1])
-    vm_main_file = vm_main_path.split("/")[-1]
-
-    command = f"cd {vm_main_folder}; {python_path} {vm_main_file}"
-    command += " " + command_arguments
-
-    transport = ssh_client.get_transport()
-    bufsize = -1
-    channel = transport.open_session()
-    channel.get_pty()
-    channel.exec_command(command)
-    # stdin = channel.makefile_stdin("wb", bufsize)
-    stdout = channel.makefile("r", bufsize)
-    # stderr = channel.makefile_stderr("r", bufsize)
-
-    return channel, stdout
+import pandas as pd
 
 
 class Controller:
@@ -141,16 +111,22 @@ class Controller:
 
             argument_intervals = [
                 (s.strftime("%Y%m%d%H%M%S"), e.strftime("%Y%m%d%H%M%S"))
-                for s, e in time_intervals
+                for s, e, _ in time_intervals
             ]
+            
             argument_intervals = [item for t in argument_intervals for item in t]
             argument_intervals = ",".join(argument_intervals)
 
+    
             command_arguments = f"--times {argument_intervals}"
             if self.load_states:
                 command_arguments += " --load_states"
+
+            co2_means = [str(co2) for _, _, co2 in time_intervals]
+            command_arguments += f' --co2_means {",".join(co2_means)}'
+
             print("SSH Starting")
-            channel, stdout = setup_ssh_execution(
+            channel, stdout = self.__setup_ssh_execution(
                 self.current_vm_ip,
                 self.ssh_port,
                 self.ssh_python_path,
@@ -158,18 +134,17 @@ class Controller:
                 username=self.ssh_username,
                 command_arguments=command_arguments,
             )
-
             try:
-                out = b''
+                out = b""
                 while True:
                     step = 500
                     out = out + stdout.read(step)
-                    if out == b'':
+                    if out == b"":
                         break
                     try:
                         line = out.decode()
-                        print(line, end='\r')
-                        out = b''
+                        print(line, end="\r")
+                        out = b""
                         if "Traceback" in line:
                             pass
                         if "End of training." in line:
@@ -180,25 +155,72 @@ class Controller:
                         out = out
             except KeyboardInterrupt:
                 channel.send("\x03")
-                for line in iter(stdout.readline, ""):
-                    print(line, end="")
-                print('Interrupted')
-            
-            interval_idx += 1
-            if datetime.datetime.now() > self.last_prediction_time + datetime.timedelta(
-                seconds=self.intervals_prediction_period
-            ):
-                self.last_prediction_time = datetime.datetime.now()
-                co2_forecast = self.co2_predictor.predict_co2()
-                self.predicted_intervals = self.interval_generator.generate_intervals(
-                    forecasts=co2_forecast,
-                    exclude_zones=self.exclude_zones,
-                    include_zones=self.include_zones,
-                    current_machine=zone_idx,
-                )
-                interval_idx = 0
+                print("Interrupted")
+                shutting = True
 
-            self.load_states = True
+            if not shutting:
+                interval_idx += 1
+                if datetime.datetime.now() > self.last_prediction_time + datetime.timedelta(
+                    seconds=self.intervals_prediction_period
+                ):
+                    self.last_prediction_time = datetime.datetime.now()
+                    co2_forecast = self.co2_predictor.predict_co2()
+                    self.predicted_intervals = self.interval_generator.generate_intervals(
+                        forecasts=co2_forecast,
+                        current_machine=zone_idx,
+                    )
+                    interval_idx = 0
+                self.load_states = True
+        
+        self.__calc_emission()
+
+    def __calc_emission(self):
+        sftp = self.ssh_client.open_sftp()
+        path = "/".join(self.ssh_vm_main_path.split("/")[:-1]) + "/emission.csv"
+        sftp.get(path, "emission.csv")
+        emission_df = pd.read_csv("emission.csv")
+        total_emission = emission_df['CO2_emissions(kg)'].sum()*1000
+        total_electricity = emission_df['power_consumption(kWh)'].sum()
+
+        global_co2_average = 475
+        delta = total_emission / (total_electricity * global_co2_average)
+        if delta <= 1:
+            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(1-delta)*100:.2f}% less than global average level')
+        else:
+            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(delta-1)*100:.2f}% higher than global average level')
+
+    def __setup_ssh_execution(
+        self,
+        ip,
+        ssh_port,
+        python_path,
+        vm_main_path,
+        username="scheduler",
+        command=None,
+        command_arguments="",
+    ):
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.ssh_client.connect(
+            hostname=ip, port=ssh_port, username=username, timeout=10
+        )
+
+        vm_main_folder = "/".join(vm_main_path.split("/")[:-1])
+        vm_main_file = vm_main_path.split("/")[-1]
+
+        command = f"cd {vm_main_folder}; {python_path} {vm_main_file}"
+        command += " " + command_arguments
+
+        transport = self.ssh_client.get_transport()
+        bufsize = -1
+        channel = transport.open_session()
+        channel.get_pty()
+        channel.exec_command(command)
+        # stdin = channel.makefile_stdin("wb", bufsize)
+        stdout = channel.makefile("r", bufsize)
+        # stderr = channel.makefile_stderr("r", bufsize)
+
+        return channel, stdout
 
     def stop_training(self):
         stop_instance(

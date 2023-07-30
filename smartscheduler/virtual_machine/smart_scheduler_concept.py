@@ -40,7 +40,6 @@ class IntervalTrainer:
         show_progressbar=True,
         callbacks: List = None,
         project_name="noname_project",
-        country_code_alpha_2=None,
         num_workers=1,
     ):
         """
@@ -103,7 +102,6 @@ class IntervalTrainer:
         )
 
         self.project_name = project_name
-        self.country_code_alpha_2 = country_code_alpha_2
         self.callbacks = callbacks
 
     def __update_self_state(self):
@@ -303,15 +301,18 @@ class IntervalTrainer:
             self.emission_tracker.stop()
             self.last_epoch = self.epochs + 1
 
-    def __init_emission_tracker(self, description=''):
-        if not os.path.exists(f"{self.project_name}_emissions"):
-            os.mkdir(f"{self.project_name}_emissions")
+    def __init_emission_tracker(self, co2_emission=None, description=''):
+        # if not os.path.exists(f"{self.project_name}_emissions"):
+        #     os.mkdir(f"{self.project_name}_emissions")
+
+        if not self.has_states_to_load and os.path.isfile("emission.csv"):
+            os.remove("emission.csv")
 
         self.emission_tracker = eco2ai.Tracker(
             project_name=self.project_name,
             experiment_description=description,
-            file_name=f"{self.project_name}_emissions/{self.project_name}_{description}.csv",
-            alpha_2_code=self.country_code_alpha_2,
+            file_name="emission.csv",
+            emission_level = co2_emission
         )
 
     def stop_training(
@@ -321,7 +322,7 @@ class IntervalTrainer:
         self.last_epoch = self.epochs
         print("End of training.")
 
-    def train(self, datetime_intervals=None, load_states=False):
+    def train(self, datetime_intervals=None, load_states=False, co2_means=None):
         """
         This function will train model for 'epochs' epochs or until total time in time intervals will pass
         If intervals == None, training process runs as usual.
@@ -337,11 +338,13 @@ class IntervalTrainer:
 
         else:
             self.__scheduler.start()
-            for start_interval, end_interval in datetime_intervals:
+            if co2_means is None:
+                co2_means = [None] * len(datetime_intervals)
+            for (start_interval, end_interval), co2_emission in zip(datetime_intervals, co2_means):
                 if self.last_epoch >= self.epochs:
                     break
 
-                self.__init_emission_tracker()
+                self.__init_emission_tracker(co2_emission=co2_emission)
                 print(f"Scheduling {start_interval} - {end_interval} job")
                 trigger = DateTrigger(run_date=start_interval)
                 self.__scheduler.add_job(

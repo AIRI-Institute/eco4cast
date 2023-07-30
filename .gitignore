@@ -14,3 +14,4 @@ lightning_logs
 co2_model.ckpt
 *.png
 imagenet-object-localization-challenge.zip
+emission.csv

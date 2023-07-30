@@ -8,16 +8,16 @@ from smartscheduler.master_machine.master_machine_controller import Controller
 
 
 username = "scheduler"
-electricity_maps_api_key = "" # your API key here
+electricity_maps_api_key = "e8wdUjXmhGg36i3fISwva0T2kJ35RGH0" # your API key here
 controller = Controller(
     credentials_path=Path(os.getcwd()) / "application_default_credentials.json",
-    ssh_username="scheduler",
+    ssh_username=username,
     ssh_python_path=f"/home/{username}/venv/bin/python",
     ssh_vm_main_path=f"/home/{username}/scheduler_task/vm_main.py",
-    current_vm_ip="35.203.81.70",
+    current_vm_ip="34.95.21.45",
     ssh_port=22,
-    current_zone="northamerica-northeast1-b",
-    current_instance_name="instance-1",
+    current_zone="northamerica-northeast1-c",
+    current_instance_name="instance-3",
     project_id="test-smart-scheduler",
     intervals_prediction_period=3600,  # seconds
     co2_predictor=CO2Predictor(electricity_maps_api_key),
