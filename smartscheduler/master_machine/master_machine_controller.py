@@ -36,7 +36,9 @@ class Controller:
         self.load_states = False
         self.last_prediction_time = datetime.datetime.now()
         self.co2_predictor = co2_predictor
+        print('Gathering info and predicting CO2 ... This may take a while ...')
         self.co2_forecast = self.co2_predictor.predict_co2()
+        print('CO2 predicted')
         self.interval_generator = interval_generator
 
         (
@@ -104,9 +106,12 @@ class Controller:
                 sleep(60)  # To let machine start
 
             # Scheduling job 30 seconds before first start_time
+            printed = False
             while datetime.datetime.now(datetime.timezone.utc) < time_intervals[0][
                 0
             ] - datetime.timedelta(seconds=30):
+                if not printed:
+                    print(f'Waiting till next interval start {time_intervals[0][0].strftime("%Y%m%d%H%M%S")}')
                 time.sleep(1)
 
             argument_intervals = [
@@ -182,12 +187,13 @@ class Controller:
         total_emission = emission_df['CO2_emissions(kg)'].sum()*1000
         total_electricity = emission_df['power_consumption(kWh)'].sum()
 
-        global_co2_average = 475
-        delta = total_emission / (total_electricity * global_co2_average)
+        co2_average_intensity = self.co2_forecast.mean()
+        co2_average_g = (total_electricity * co2_average_intensity)
+        delta = total_emission / co2_average_g
         if delta <= 1:
-            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(1-delta)*100:.2f}% less than global average level')
+            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(1-delta)*100:.2f}% less than average emission ({co2_average_g:.6f} g)')
         else:
-            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(delta-1)*100:.2f}% higher than global average level')
+            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(delta-1)*100:.2f}% higher than average emission ({co2_average_g:.6f} g)')
 
     def __setup_ssh_execution(
         self,

@@ -15,6 +15,7 @@ import pickle
 import importlib.resources
 from . import data_files
 from smartscheduler.master_machine.utils import code_names
+from tqdm import tqdm
 
 
 class CO2Predictor:
@@ -75,7 +76,7 @@ class CO2Predictor:
         """
 
         batch = []
-        for code, points in self.country_points:
+        for code, points in tqdm(self.country_points):
             point_weather_matrices = []
             zone_emission = get_24h_history(code, self.electricity_maps_api_key)
             # zone_emission = [0] * 24 # For testing purposes
