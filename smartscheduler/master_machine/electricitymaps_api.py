@@ -2,7 +2,7 @@ import requests
 import json
 
 def get_24h_history(zone, api_key):
-    url = "https://api-access.electricitymaps.com/2w97h07rvxvuaa1g/carbon-intensity/history"
+    url = "https://api-access.electricitymaps.com/free-tier/carbon-intensity/history"
     headers = {
     "auth-token": api_key,  
     }
