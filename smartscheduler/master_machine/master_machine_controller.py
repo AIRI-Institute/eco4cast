@@ -36,9 +36,9 @@ class Controller:
         self.load_states = False
         self.last_prediction_time = datetime.datetime.now()
         self.co2_predictor = co2_predictor
-        print('Gathering info and predicting CO2 ... This may take a while ...')
+        print("Gathering info and predicting CO2 ... This may take a while ...")
         self.co2_forecast = self.co2_predictor.predict_co2()
-        print('CO2 predicted')
+        print("CO2 predicted")
         self.interval_generator = interval_generator
 
         (
@@ -111,18 +111,19 @@ class Controller:
                 0
             ] - datetime.timedelta(seconds=30):
                 if not printed:
-                    print(f'Waiting till next interval start {time_intervals[0][0].strftime("%Y%m%d%H%M%S")}')
+                    print(
+                        f'Waiting till next interval start {time_intervals[0][0].strftime("%Y%m%d%H%M%S")}'
+                    )
                 time.sleep(1)
 
             argument_intervals = [
                 (s.strftime("%Y%m%d%H%M%S"), e.strftime("%Y%m%d%H%M%S"))
                 for s, e, _ in time_intervals
             ]
-            
+
             argument_intervals = [item for t in argument_intervals for item in t]
             argument_intervals = ",".join(argument_intervals)
 
-    
             command_arguments = f"--times {argument_intervals}"
             if self.load_states:
                 command_arguments += " --load_states"
@@ -165,18 +166,22 @@ class Controller:
 
             if not shutting:
                 interval_idx += 1
-                if datetime.datetime.now() > self.last_prediction_time + datetime.timedelta(
-                    seconds=self.intervals_prediction_period
+                if (
+                    datetime.datetime.now()
+                    > self.last_prediction_time
+                    + datetime.timedelta(seconds=self.intervals_prediction_period)
                 ):
                     self.last_prediction_time = datetime.datetime.now()
                     co2_forecast = self.co2_predictor.predict_co2()
-                    self.predicted_intervals = self.interval_generator.generate_intervals(
-                        forecasts=co2_forecast,
-                        current_machine=zone_idx,
+                    self.predicted_intervals = (
+                        self.interval_generator.generate_intervals(
+                            forecasts=co2_forecast,
+                            current_machine=zone_idx,
+                        )
                     )
                     interval_idx = 0
                 self.load_states = True
-        
+
         self.__calc_emission()
 
     def __calc_emission(self):
@@ -184,16 +189,29 @@ class Controller:
         path = "/".join(self.ssh_vm_main_path.split("/")[:-1]) + "/emission.csv"
         sftp.get(path, "emission.csv")
         emission_df = pd.read_csv("emission.csv")
-        total_emission = emission_df['CO2_emissions(kg)'].sum()*1000
-        total_electricity = emission_df['power_consumption(kWh)'].sum()
+        total_emission = emission_df["CO2_emissions(kg)"].sum() * 1000
+        total_electricity = emission_df["power_consumption(kWh)"].sum()
 
         co2_average_intensity = self.co2_forecast.mean()
-        co2_average_g = (total_electricity * co2_average_intensity)
+        co2_average_g = total_electricity * co2_average_intensity
         delta = total_emission / co2_average_g
+
         if delta <= 1:
-            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(1-delta)*100:.2f}% less than average emission ({co2_average_g:.6f} g)')
+            text = [
+                f"Your total CO2 emissions are {total_emission:.6f} g and",
+                f"this is {(1-delta)*100:.2f}% less than average emission ({co2_average_g:.6f} g)",
+            ]
         else:
-            print(f'Your total CO2 emissions are {total_emission:.6f} g and this is {(delta-1)*100:.2f}% higher than average emission ({co2_average_g:.6f} g)')
+            text = [
+                f"Your total CO2 emissions are {total_emission:.6f} g and",
+                f"this is {(delta-1)*100:.2f}% higher than average emission ({co2_average_g:.6f} g)",
+            ]
+
+        width = 60
+        print("+=" + "=" * width + "=+")
+        for line in text:
+            print(f"|| {line.center(width-2)} ||")
+        print("+=" + "=" * (width) + "=+")
 
     def __setup_ssh_execution(
         self,
