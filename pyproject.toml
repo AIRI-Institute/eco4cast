@@ -3,8 +3,8 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "SmartScheduler"
-version = "0.0.4"
+name = "eco4cast"
+version = "0.0.2"
 description = "This package is designed to reduce CO2 emissions while training neural networks using Google Cloud."
 
 authors = ["Mikhail Tiutiulnikov <tiutiulnikov@airi.net>", 
@@ -12,9 +12,9 @@ authors = ["Mikhail Tiutiulnikov <tiutiulnikov@airi.net>",
             "Aleksei Korovin <korovin@airi.net>",
             "Semen Budennyi <budennyy@airi.net>"]
 readme = "README.md"
-packages = [{include = "smartscheduler"}]
+packages = [{include = "eco4cast"}]
 license = "MIT"
-repository = "https://github.com/AIRI-Institute/SmartScheduler"
+repository = "https://github.com/AIRI-Institute/eco4cast"
 keywords = ["co2 emission", "google cloud", "pytorch"]
 
 [tool.poetry.dependencies]

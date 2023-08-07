@@ -1,10 +1,10 @@
-from smartscheduler.master_machine.interval_predictor import (
+from eco4cast.master_machine.interval_predictor import (
     CO2Predictor,
     IntervalGenerator,
 )
 import os
 from pathlib import Path
-from smartscheduler.master_machine.master_machine_controller import Controller
+from eco4cast.master_machine.master_machine_controller import Controller
 
 
 username = "scheduler"

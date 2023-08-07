@@ -11,7 +11,7 @@ electricitymaps_datasets
 ImageNet_dataset
 imagenet_models
 lightning_logs
-co2_model.ckpt
 *.png
 imagenet-object-localization-challenge.zip
 emission.csv
+model.ckpt

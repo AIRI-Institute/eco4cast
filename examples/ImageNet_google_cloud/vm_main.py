@@ -1,4 +1,4 @@
-from smartscheduler.virtual_machine.smart_scheduler_concept import IntervalTrainer
+from eco4cast.virtual_machine.smart_scheduler_concept import IntervalTrainer
 from torch import nn
 import torch
 from torchvision import datasets, transforms

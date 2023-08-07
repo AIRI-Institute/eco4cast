@@ -1,6 +1,6 @@
-# SmartScheduler
+# eco4cast
 
-+ [About SmartScheduler :clipboard:](#1)
++ [About eco4cast :clipboard:](#1)
 + [Installation :wrench:](#2)
 + [Usage example (Tutorial on training with MNIST) :computer:](#3)
 + [How to use package without Google Cloud](#4)
@@ -9,7 +9,7 @@
 
 
 
-## About SmartScheduler :clipboard: <a name="1"></a> 
+## About eco4cast :clipboard: <a name="1"></a> 
 This package is designed to reduce CO2 emissions while training neural network models. The main idea of the package is to run the learning process at certain time intervals on certain Google Cloud servers with minimal emissions. A neural network (TCN) trained on the historical data of 13 zones is used to predict emissions for 24 hours ahead.
 
 Currently supported Google Cloud zones: 'southamerica-east1-b', 'northamerica-northeast2-b', 'europe-west6-b', 'europe-west3-b', 'europe-central2-b', 'europe-west1-b', 'europe-west8-a', 'northamerica-northeast1-b', 'europe-southwest1-c', 'europe-west2-b', 'europe-north1-b', 'europe-west9-b',  'europe-west4-b' .
@@ -17,7 +17,7 @@ Currently supported Google Cloud zones: 'southamerica-east1-b', 'northamerica-no
 ## Installation <a name="2"></a> 
 Package can be installed using Pypi:
 ```
-pip install smartscheduler
+pip install eco4cast
 ```
 
 ## Usage example. Tutorial on training with MNIST <a name="3"></a>
@@ -31,7 +31,7 @@ Make a project directory and create venv (or conda env). Do necessary installati
 ```
 python3 -m venv venv
 source venv/bin/activate
-pip install smartscheduler
+pip install eco4cast
 ```
 
 ### Step 2. Google cloud setup
@@ -64,7 +64,7 @@ Connect to VM SSH and do folowing steps.
 ```
 python3 -m venv venv
 source venv/bin/activate
-pip install smartscheduler
+pip install eco4cast
 pip install torchvision  # Installation needed for MNIST
 ```
 

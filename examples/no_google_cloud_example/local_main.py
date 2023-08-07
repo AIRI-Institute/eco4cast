@@ -1,5 +1,5 @@
-from smartscheduler.master_machine.interval_predictor import CO2Predictor, IntervalGenerator
-from smartscheduler.virtual_machine.smart_scheduler_concept import IntervalTrainer
+from eco4cast.master_machine.interval_predictor import CO2Predictor, IntervalGenerator
+from eco4cast.virtual_machine.smart_scheduler_concept import IntervalTrainer
 from torch import nn
 import torch.nn.functional as F
 import torch
