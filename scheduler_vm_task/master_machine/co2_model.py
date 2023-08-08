@@ -5,7 +5,6 @@ from torch import nn
 import torch.optim as optim
 import torch
 from scheduler_vm_task.master_machine.tcn_pytorch import TemporalConvNet
-from torchsummary import summary
 
 
 class ForecastingModel(nn.Module):
@@ -85,11 +84,9 @@ class CO2Model(LightningModule):
     def __init__(
         self,
         tcn_hparams: Dict,
-        attention_layers_num : int,
         predict_window: int,
         optimizer_name: str,
         optimizer_hparams: Dict,
-        layernorm_dropout=0.2,
     ):
         """Initialize  model
 

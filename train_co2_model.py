@@ -6,7 +6,12 @@ from weather_co2_dataset import WeatherCO2DataModule
 import numpy as np
 import torch
 import pandas as pd
+import eco2ai
 
+
+
+co2_tracker = eco2ai.Tracker('CO2_model_emission', file_name='co2_model_emission.csv')
+co2_tracker.start()
 
 torch.manual_seed(0)
 
@@ -18,28 +23,12 @@ model = CO2Model(
         "kernel_size": 3,
         "dropout": 0.0,
     },
-    attention_layers_num = 8,
     predict_window=24,
     optimizer_name="Adam",
     optimizer_hparams={"lr": 1e-3, "weight_decay": 1e-4},
 )
 
 
-trainer = Trainer(
-    accelerator="gpu",
-    devices=[0],
-    max_epochs=100,
-    callbacks=[
-        ModelCheckpoint(
-            save_weights_only=True,
-            monitor="val_loss",
-            mode="min",
-        ),
-        EarlyStopping(monitor="val_loss", mode="min", patience=20),
-    ],
-    default_root_dir="models",
-    logger=WandbLogger(log_model="all", project="SmartScheduler"),
-)
 
 
 codes = ["BR-CS", "CA-ON", "CH", "DE", "PL", "BE", "IT-NO", "CA-QC", "ES", "GB", "FI", "FR", "NL"]
@@ -61,8 +50,27 @@ for code in codes:
 
 
 dm = WeatherCO2DataModule(
-    features_data, targets_data, 24, 24, 10, 64
+    features_data, targets_data, 24, 24, 8, 64
+)
+
+
+trainer = Trainer(
+    accelerator="cpu",
+    # devices=,
+    max_epochs=100,
+    callbacks=[
+        ModelCheckpoint(
+            save_weights_only=True,
+            monitor="val_loss",
+            mode="min",
+        ),
+        EarlyStopping(monitor="val_loss", mode="min", patience=10),
+    ],
+    default_root_dir="models",
+    logger=WandbLogger(log_model="all", project="SmartScheduler"),
 )
 
 
 trainer.fit(model, datamodule=dm)
+
+co2_tracker.stop()
