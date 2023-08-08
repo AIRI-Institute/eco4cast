@@ -15,3 +15,5 @@ lightning_logs
 imagenet-object-localization-challenge.zip
 emission.csv
 model.ckpt
+wandb
+SmartScheduler

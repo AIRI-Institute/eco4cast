@@ -1,11 +1,13 @@
 # eco4cast
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18mUybd62_V73J3X0ARPl6ILyEjh9ChLE)
+
 + [About eco4cast :clipboard:](#1)
 + [Installation :wrench:](#2)
 + [Usage example (Tutorial on training with MNIST) :computer:](#3)
 + [How to use package without Google Cloud](#4)
 + [Citing](#5)
-+ [Feedback :envelope:](#6) 
+<!-- + [Feedback :envelope:](#6)  -->
 
 
 
@@ -21,6 +23,9 @@ pip install eco4cast
 ```
 
 ## Usage example. Tutorial on training with MNIST <a name="3"></a>
+
+You can find this tutorial with step-by-step screenshots here [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18mUybd62_V73J3X0ARPl6ILyEjh9ChLE)
+
 ### What you will need
 - Google Cloud account
 - ElectricityMaps account with free trial
@@ -111,11 +116,11 @@ Of course you can modify `vm_main.py` as you want. Probably you will use your ow
 ## How to use package without Google Cloud. <a name="4"></a>
 If you want to use our scheduler without Google Cloud VMs and you are in one of the available zones you can use `local_main.py` example and specify your electricitymaps zone in code. Scheduler will start training only during time with minimal CO2 emission.
 
-Available electricitymaps zones: "BR-CS", "CA-ON", "CH", "DE", "PL", "BE", "IT-NO", "CA-QC", "ES", "GB", "FI", "FR", "NL"
+Available electricitymaps zones: "BR-CS", "CA-ON", "CH", "DE", "PL", "BE", "IT-NO", "CA-QC", "ES", "GB", "FI", "FR", "NL".
 
 ## Citing <a name="5"></a>
 Paper info
 
 
-## Feedback <a name="6"></a>
-email?
+<!-- ## Feedback <a name="6"></a>
+email? -->
