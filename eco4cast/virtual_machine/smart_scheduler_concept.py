@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
+from eco4cast.master_machine.interval_predictor import CO2Predictor, IntervalGenerator
 from eco4cast.virtual_machine.utils import (
     ResumableRandomSampler,
     CustomStartProgressBar,
@@ -16,6 +17,7 @@ from lightning.fabric import Fabric
 from lightning.fabric.utilities.types import _Stateful
 import eco2ai
 import os
+import time
 
 
 class IntervalTrainer:
@@ -66,7 +68,7 @@ class IntervalTrainer:
             batch_size=batch_size,
             sampler=self.train_sampler,
             num_workers=num_workers,
-            persistent_workers=True
+            persistent_workers=True,
         )
 
         self.val_sampler = ResumableRandomSampler(self.val_dataset)
@@ -75,7 +77,7 @@ class IntervalTrainer:
             batch_size=batch_size,
             sampler=self.val_sampler,
             num_workers=num_workers,
-            persistent_workers=True
+            persistent_workers=True,
         )
         self.training_state = "train"
         self.last_train_batch_idx = 0
@@ -102,6 +104,7 @@ class IntervalTrainer:
 
         self.project_name = project_name
         self.callbacks = callbacks
+        self.shutting = False
 
     def __update_self_state(self):
         self.state = {
@@ -300,7 +303,7 @@ class IntervalTrainer:
             self.emission_tracker.stop()
             self.last_epoch = self.epochs + 1
 
-    def __init_emission_tracker(self, co2_emission=None, description=''):
+    def __init_emission_tracker(self, co2_emission=None, description=""):
         # if not os.path.exists(f"{self.project_name}_emissions"):
         #     os.mkdir(f"{self.project_name}_emissions")
 
@@ -311,7 +314,7 @@ class IntervalTrainer:
             project_name=self.project_name,
             experiment_description=description,
             file_name="emission.csv",
-            emission_level = co2_emission
+            emission_level=co2_emission,
         )
 
     def stop_training(
@@ -339,7 +342,9 @@ class IntervalTrainer:
             self.__scheduler.start()
             if co2_means is None:
                 co2_means = [None] * len(datetime_intervals)
-            for (start_interval, end_interval), co2_emission in zip(datetime_intervals, co2_means):
+            for (start_interval, end_interval), co2_emission in zip(
+                datetime_intervals, co2_means
+            ):
                 if self.last_epoch >= self.epochs:
                     break
 
@@ -371,3 +376,41 @@ class IntervalTrainer:
                     break
 
                 del self.emission_tracker
+
+    def train_using_predictor(
+        self,
+        co2_predictor: CO2Predictor,
+        interval_generator: IntervalGenerator,
+        minimum_prediction_period=3600,
+    ):
+        co2_forecast = co2_predictor.predict_co2()
+        predicted_intervals, zone_indices = interval_generator.generate_intervals(
+            forecasts=co2_forecast,
+        )
+
+        if len(predicted_intervals) == 0:
+            print("Empty intevals, please check parameters")
+            return
+        else:
+            print(f"Predicted {len(predicted_intervals)} intervals")
+
+        last_prediction_time = time.time()
+
+        interval_index = 0
+        while not self.shutting:
+            code, time_intervals = predicted_intervals[interval_index]
+            time_interval = time_intervals[0][0:2]
+            self.train([time_interval])
+
+            if (
+                time.time() - last_prediction_time >= minimum_prediction_period
+                or interval_index + 1 == len(predicted_intervals)
+            ):
+                # fmt: off
+                predicted_intervals, _, = interval_generator.generate_intervals(
+                    forecasts=co2_forecast,
+                )
+                # fmt: on
+                interval_index = 0
+            else:
+                interval_index += 1

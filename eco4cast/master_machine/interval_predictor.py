@@ -27,6 +27,8 @@ class CO2Predictor:
         self,
         electricity_maps_api_key: str,
         checkpoint_file_path=None,
+        exclude_zones=None,
+        include_zones=None,
     ) -> None:
         """
         Args:
@@ -41,6 +43,20 @@ class CO2Predictor:
             checkpoint_file_path = self.data_path / "co2_model.ckpt"
         self.load_model(checkpoint_file_path=checkpoint_file_path)
         self.electricity_maps_api_key = electricity_maps_api_key
+        
+        self.request_indices = list(range(len(code_names)))
+        zone_to_id = dict(zip(code_names, list(range(len(code_names)))))
+
+        if include_zones is not None:
+            self.request_indices = [zone_to_id[z] for z in include_zones]
+        
+        if exclude_zones is not None:
+            for z in exclude_zones:
+                if zone_to_id[z] in self.request_indices:
+                    self.request_indices.remove(zone_to_id[z])
+
+
+
 
     def load_model(
         self,
@@ -76,7 +92,10 @@ class CO2Predictor:
         """
 
         batch = []
-        for code, points in tqdm(self.country_points):
+        for i, ( code, points) in enumerate(tqdm(self.country_points)):
+            if i not in self.request_indices:
+                batch.append(np.zeros((38, 24, 23)))
+                continue
             point_weather_matrices = []
             zone_emission = get_24h_history(code, self.electricity_maps_api_key)
             # zone_emission = [0] * 24 # For testing purposes
@@ -117,7 +136,6 @@ class IntervalGenerator:
 
     def __init__(
         self,
-        zone_names=code_names,
         max_emission_value=180,
         co2_delta_to_move=30,
         min_interval_size=1,
@@ -125,9 +143,9 @@ class IntervalGenerator:
         exclude_zones=None,
         include_zones=None,
     ) -> None:
-        self.zone_names = dict(zip(list(range(len(zone_names))), zone_names))
+        self.zone_names = dict(zip(list(range(len(code_names))), code_names))
         self.zone_names[-1] = -1
-        self.zone_to_id = dict(zip(zone_names, list(range(len(zone_names)))))
+        self.zone_to_id = dict(zip(code_names, list(range(len(code_names)))))
         self.max_emission_value = max_emission_value
         self.co2_delta_to_move = co2_delta_to_move
         self.min_interval_size = min_interval_size
