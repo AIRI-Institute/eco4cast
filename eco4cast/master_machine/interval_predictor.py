@@ -282,5 +282,5 @@ class IntervalGenerator:
         ]
 
         return datetime_intervals, [
-            vm_idx for vm_idx, vm_intervals in formatted_intervals
+            vm_idx for vm_idx, _ in formatted_intervals
         ]

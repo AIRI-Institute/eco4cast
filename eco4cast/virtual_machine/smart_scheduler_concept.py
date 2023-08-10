@@ -18,6 +18,8 @@ from lightning.fabric.utilities.types import _Stateful
 import eco2ai
 import os
 import time
+import pandas as pd
+
 
 
 class IntervalTrainer:
@@ -388,19 +390,26 @@ class IntervalTrainer:
             forecasts=co2_forecast,
         )
 
+
+
         if len(predicted_intervals) == 0:
             print("Empty intevals, please check parameters")
             return
         else:
             print(f"Predicted {len(predicted_intervals)} intervals")
 
+        first_forecast = co2_forecast[zone_indices[0]]
+
         last_prediction_time = time.time()
 
         interval_index = 0
+        load_states = False
         while not self.shutting:
-            code, time_intervals = predicted_intervals[interval_index]
-            time_interval = time_intervals[0][0:2]
-            self.train([time_interval])
+            code, time_intervals = predicted_intervals[0]
+            time_interval = time_intervals[interval_index][0:2]
+            co2_mean = time_intervals[interval_index][2]
+            self.train([time_interval], load_states=load_states, co2_means=[co2_mean])
+            load_states = True
 
             if (
                 time.time() - last_prediction_time >= minimum_prediction_period
@@ -414,3 +423,21 @@ class IntervalTrainer:
                 interval_index = 0
             else:
                 interval_index += 1
+        
+        
+        emission_df = pd.read_csv("emission.csv")
+        total_emission = emission_df["CO2_emissions(kg)"].sum() * 1000
+        total_electricity = emission_df["power_consumption(kWh)"].sum()
+        
+        average_emission = total_electricity * first_forecast.mean()
+
+        text = [
+                f"Your total CO2 emissions are {total_emission:.6f} g. ",
+                f"{average_emission - total_emission:.6f} g were saved in comparison with average emission ({average_emission:.6f} g)",
+            ]
+        
+        width = 80
+        print("+=" + "=" * width + "=+")
+        for line in text:
+            print(f"|| {line.center(width-2)} ||")
+        print("+=" + "=" * (width) + "=+")
