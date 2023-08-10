@@ -114,7 +114,9 @@ Of course you can modify `vm_main.py` as you want. Probably you will use your ow
 
 
 ## How to use package without Google Cloud. <a name="4"></a>
-If you want to use our scheduler without Google Cloud VMs and you are in one of the available zones you can use `local_main.py` example and specify your electricitymaps zone in code. Scheduler will start training only during time with minimal CO2 emission.
+You can find example of using eco4cast without Google Cloud here [![Open In Colab](https://colab.research.google.com/drive/16FGIA4noKWDueBUjMGs0vOR8rv5g2QtN?usp=sharing)
+
+If you want to use our scheduler without Google Cloud VMs and you are in one of the available zones you can use `local_quick_start_guide.ipynb` example and specify your electricitymaps zone in code. Scheduler will start training only during time with CO2 emission lower than threshold.
 
 Available electricitymaps zones: "BR-CS", "CA-ON", "CH", "DE", "PL", "BE", "IT-NO", "CA-QC", "ES", "GB", "FI", "FR", "NL".
 
