@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "eco4cast"
-version = "0.0.4"
+version = "0.0.5"
 description = "This package is designed to reduce CO2 emissions while training neural networks using Google Cloud."
 
 authors = ["Mikhail Tiutiulnikov <tiutiulnikov@airi.net>", 
