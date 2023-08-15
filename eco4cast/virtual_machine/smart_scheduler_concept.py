@@ -21,7 +21,6 @@ import time
 import pandas as pd
 
 
-
 class IntervalTrainer:
     """
     It trains model during datetime intervals using BackgroundScheduler
@@ -387,25 +386,25 @@ class IntervalTrainer:
     ):
         co2_forecast = co2_predictor.predict_co2()
         predicted_intervals, zone_indices = interval_generator.generate_intervals(
-            forecasts=co2_forecast,
+            co2_forecast
         )
-
-
 
         if len(predicted_intervals) == 0:
             print("Empty intevals, please check parameters")
             return
         else:
-            print(f"Predicted {len(predicted_intervals)} intervals")
+            _, time_intervals = predicted_intervals[0]
+            print(f"Predicted {len(time_intervals)} interval(s)")
+            for start, end, co2 in time_intervals:
+                print(f"Interval: {start} - {end} (UTC time)")
 
-        first_forecast = co2_forecast[zone_indices[0]]
-
+        first_forecast = co2_forecast[list(co2_forecast.keys())[0]]
         last_prediction_time = time.time()
 
         interval_index = 0
         load_states = False
         while not self.shutting:
-            code, time_intervals = predicted_intervals[0]
+            _, time_intervals = predicted_intervals[0]
             time_interval = time_intervals[interval_index][0:2]
             co2_mean = time_intervals[interval_index][2]
             self.train([time_interval], load_states=load_states, co2_means=[co2_mean])
@@ -413,29 +412,38 @@ class IntervalTrainer:
 
             if (
                 time.time() - last_prediction_time >= minimum_prediction_period
-                or interval_index + 1 == len(predicted_intervals)
-            ):
+                or interval_index + 1 == len(time_intervals)
+            ) and not self.shutting:
                 # fmt: off
                 predicted_intervals, _, = interval_generator.generate_intervals(
-                    forecasts=co2_forecast,
+                    co2_forecast
                 )
                 # fmt: on
+                if len(predicted_intervals) == 0:
+                    print("Predicted empty intervals. Shutting down")
+                    self.shutting = True
+                    break
+                else:
+                    _, time_intervals = predicted_intervals[0]
+                    print(f"Predicted {len(time_intervals)} new interval(s)")
+                    for start, end, co2 in time_intervals:
+                        print(f"Interval: {start} - {end} (UTC time)")
                 interval_index = 0
             else:
                 interval_index += 1
-        
-        
+
+        sleep(0.5)
         emission_df = pd.read_csv("emission.csv")
         total_emission = emission_df["CO2_emissions(kg)"].sum() * 1000
         total_electricity = emission_df["power_consumption(kWh)"].sum()
-        
+
         average_emission = total_electricity * first_forecast.mean()
 
         text = [
-                f"Your total CO2 emissions are {total_emission:.6f} g. ",
-                f"{average_emission - total_emission:.6f} g were saved in comparison with average emission ({average_emission:.6f} g)",
-            ]
-        
+            f"Your total CO2 emissions are {total_emission:.6f} g. ",
+            f"{average_emission - total_emission:.6f} g were saved in comparison with average emission ({average_emission:.6f} g)",
+        ]
+
         width = 80
         print("+=" + "=" * width + "=+")
         for line in text:

@@ -8,7 +8,7 @@ from eco4cast.master_machine.master_machine_controller import Controller
 
 
 username = "scheduler"
-electricity_maps_api_key = "e8wdUjXmhGg36i3fISwva0T2kJ35RGH0" # your API key here
+electricity_maps_api_key = "gUZ7QzkmU91g50yliykpgOUdGQGUIDcD" # your API key here
 controller = Controller(
     credentials_path=Path(os.getcwd()) / "application_default_credentials.json",
     ssh_username=username,

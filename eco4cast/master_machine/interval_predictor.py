@@ -1,4 +1,4 @@
-from ast import List
+from ast import Dict, List
 from eco4cast.master_machine.weather_data_utils import (
     get_last_weather_data,
 )
@@ -46,6 +46,7 @@ class CO2Predictor:
         
         self.request_indices = list(range(len(code_names)))
         zone_to_id = dict(zip(code_names, list(range(len(code_names)))))
+        self.id_to_zone = dict(zip(list(range(len(code_names))), code_names))
 
         if include_zones is not None:
             self.request_indices = [zone_to_id[z] for z in include_zones]
@@ -125,7 +126,12 @@ class CO2Predictor:
         self.emission_forecast = self.predict_model.predict_step((batch, 0, 0), 0)
         self.emission_forecast = self.emission_forecast.detach().cpu().numpy()
 
-        return self.emission_forecast
+        forecast_dict = {}
+        for id in self.request_indices:
+            forecast_dict[self.id_to_zone[id]] = self.emission_forecast[id]
+
+
+        return forecast_dict
 
 
 class IntervalGenerator:
@@ -155,27 +161,31 @@ class IntervalGenerator:
 
     def generate_intervals(
         self,
-        forecasts,
+        forecast_dict : Dict,
         current_zone_idx=0,
     ):
         """
         This function generates training intervals.
         Uses co2_predictor's forecasted co2 emission to build intervals with minimum total emission.
         """
-
-        assert len(forecasts) == len(self.zone_names) - 1
-
-        forecasts = np.copy(forecasts)
         
-
         if self.include_zones is not None and len(self.include_zones) > 0:
             self.exclude_zones = [
                 k for k in self.zone_to_id.keys() if k not in self.include_zones
             ]
+            for zone in self.include_zones:
+                if zone not in forecast_dict.keys():
+                    print(f'Cant find zone {zone} if forecast_dict. Ignoring zone')
+                    self.exclude_zones.append(self.zone_to_id[zone])
+
+        forecasts = np.zeros((len(self.zone_names) - 1, 24))
+        for zone, forecast in forecast_dict.items():
+            forecasts[self.zone_to_id[zone]] = forecast_dict[zone]
 
         if self.exclude_zones is not None and len(self.exclude_zones) > 0:
             for z in self.exclude_zones:
                 forecasts[self.zone_to_id[z]] = 1e9
+
 
         time_slots = np.zeros((len(forecasts), 24), dtype=int)
 

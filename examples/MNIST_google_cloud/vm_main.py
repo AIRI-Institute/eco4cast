@@ -98,28 +98,30 @@ class BestModelSavingCallback:
             )
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--times", type=str)
-parser.add_argument("--co2_means", type=str)
-parser.add_argument("--load_states", action="store_true")
-args = parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--times", type=str)
+# parser.add_argument("--co2_means", type=str)
+# parser.add_argument("--load_states", action="store_true")
+# args = parser.parse_args()
 
-intervals = [
-    datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
-    for item in args.times.split(",")
-]
-intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
-load_states = args.load_states
+# intervals = [
+#     datetime.datetime.strptime(item + "+00:00", "%Y%m%d%H%M%S%z")
+#     for item in args.times.split(",")
+# ]
+# intervals = [(intervals[i], intervals[i + 1]) for i in range(0, len(intervals), 2)]
+# load_states = args.load_states
 
-co2_means = [float(item) for item in args.co2_means.split(",")]
+# co2_means = [float(item) for item in args.co2_means.split(",")]
 
-# load_states = False
+load_states = False
 
-# intervals = [(
-#     datetime.datetime(2023, 7, 28, 12, 15, tzinfo=datetime.timezone.utc),
-#     datetime.datetime(2023, 7, 31, 5, 10, tzinfo=datetime.timezone.utc),
-#     100
-# )]
+intervals = [(
+    datetime.datetime(2023, 8, 15, 16, 15, tzinfo=datetime.timezone.utc),
+    datetime.datetime(2023, 8, 16, 5, 10, tzinfo=datetime.timezone.utc),
+)]
+
+co2_means = [100]
+
 
 
 # callbacks = [EarlyStoppingCallback(100), BestModelSavingCallback()]

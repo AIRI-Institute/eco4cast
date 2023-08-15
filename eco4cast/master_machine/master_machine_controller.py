@@ -44,9 +44,7 @@ class Controller:
         (
             self.predicted_intervals,
             self.zone_indices,
-        ) = self.interval_generator.generate_intervals(
-            forecasts=self.co2_forecast,
-        )
+        ) = self.interval_generator.generate_intervals(self.co2_forecast)
 
         self.ssh_username = ssh_username
         self.ssh_python_path = ssh_python_path
@@ -175,7 +173,7 @@ class Controller:
                     co2_forecast = self.co2_predictor.predict_co2()
                     self.predicted_intervals = (
                         self.interval_generator.generate_intervals(
-                            forecasts=co2_forecast,
+                            co2_forecast,
                             current_machine=zone_idx,
                         )
                     )
@@ -192,7 +190,9 @@ class Controller:
         total_emission = emission_df["CO2_emissions(kg)"].sum() * 1000
         total_electricity = emission_df["power_consumption(kWh)"].sum()
 
-        co2_average_intensity = self.co2_forecast.mean()
+        co2_average_intensity = sum(f.mean() for f in self.co2_forecast.values()) / len(
+            self.co2_forecast
+        )
         co2_average_g = total_electricity * co2_average_intensity
 
         if total_emission / co2_average_g <= 1:
