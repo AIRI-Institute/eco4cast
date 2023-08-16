@@ -32,8 +32,10 @@ class CO2Predictor:
     ) -> None:
         """
         Args:
-            electricity_maps_api_key : api key to access weather in electricity_maps regions
-            (Optional) checkpoint_file_path (str) : path to file with torch model. If not provided - default model is used
+            electricity_maps_api_key (str): Api key to access weather in electricity_maps regions
+            checkpoint_file_path ([type], optional): Path to file with torch model. If not provided - default model is used. Defaults to None.
+            exclude_zones (List, optional): Zones to be only excluded in calculation. Defaults to None.
+            include_zones (List, optional): Zones to be only included in calculation. If None, then all zones are used. Defaults to None.
         """
 
         self.lookback_window = 24  # Model-specific parameter
@@ -146,9 +148,19 @@ class IntervalGenerator:
         co2_delta_to_move=30,
         min_interval_size=1,
         max_window_size=3,
-        exclude_zones=None,
-        include_zones=None,
+        exclude_zones : List = None,
+        include_zones : List = None,
     ) -> None:
+        """
+        Args:
+            max_emission_value (int, optional): Threshold to maximum allowed emission in moving window. Defaults to 180.
+            co2_delta_to_move (int, optional): Minimum difference in emission between two zones to decide to move VM. Defaults to 30.
+            min_interval_size (int, optional): Minimum training interval lenght in hours. Defaults to 1.
+            max_window_size (int, optional): Maximum window size for moving average for thresholding. Defaults to 3.
+            exclude_zones (List, optional): Zones to be only excluded in calculation. Defaults to None.
+            include_zones (List, optional): Zones to be only included in calculation. If None, then all zones are used. Defaults to None.
+        """
+        
         self.zone_names = dict(zip(list(range(len(code_names))), code_names))
         self.zone_names[-1] = -1
         self.zone_to_id = dict(zip(code_names, list(range(len(code_names)))))
@@ -165,10 +177,12 @@ class IntervalGenerator:
         current_zone_idx=0,
     ):
         """
-        This function generates training intervals.
-        Uses co2_predictor's forecasted co2 emission to build intervals with minimum total emission.
+        Args:
+            forecast_dict (Dict): Forecast from CO2Predictor in form {zone : 24 hours forecast}
+            current_zone_idx (int, optional): Current zone index of VM. Defaults to 0.
         """
         
+        current_zone_idx 
         if self.include_zones is not None and len(self.include_zones) > 0:
             self.exclude_zones = [
                 k for k in self.zone_to_id.keys() if k not in self.include_zones
