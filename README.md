@@ -12,7 +12,7 @@
 
 ## About eco4cast :clipboard: <a name="1"></a> 
 
-<img src=https://github.com/AIRI-Institute/eco4cast/tree/main/images/eco4cast_color.jpg />
+![Logo](images/eco4cast_color.jpg)
 
 The package eco4cast is designed to reduce CO2 emissions while training neural network models. The main idea of the package is to run the learning process at certain time intervals on certain Google Cloud servers with minimal emissions. A neural network (TCN) trained on the historical data of 13 zones is used to predict emissions for 24 hours ahead.
 
