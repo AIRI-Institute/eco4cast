@@ -39,8 +39,23 @@ Available electricitymaps zones to work locally:
 "GB" (Great Britain), "FI" (Finland), "FR" (France) "NL" (Netherlands)
 
 ## Citing <a name="4"></a>
-Paper info
 
+[![DOI](https://img.shields.io/badge/DOI-eco4cast%20article-brightgreen)](https://doi.org/10.1134/S1064562422060230)
+
+The Eco4cast is licensed under a [Apache licence 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+Please consider citing the following paper in any research manuscript using the Eco4cast library:
+
+```
+ @article{eco4cast,
+ title={eco4cast: Bridging Predictive Scheduling and Cloud Computing for Reduction of Carbon Emissions for ML Models Training},
+ volume={108},
+ DOI={10.1134/S1064562423701223},
+ number={2},
+ journal={Doklady Mathematics}, author={Tiutiulnikov, M. and Lazarev, V. and Korovin, A. and Zakharenko, N. and Doroshchenko, I. and Budennyy, S.},
+ year={2023}, month=dec, pages={S443–S455}, language={en}}
+
+```
 
 <!-- ## Feedback <a name="6"></a>
 email? -->
