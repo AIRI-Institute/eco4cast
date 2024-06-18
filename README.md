@@ -40,7 +40,7 @@ Available electricitymaps zones to work locally:
 
 ## Citing <a name="4"></a>
 
-[![DOI](https://img.shields.io/badge/DOI-eco4cast%20article-brightgreen)](https://doi.org/10.1134/S1064562422060230)
+[![DOI](https://img.shields.io/badge/DOI-eco4cast%20article-brightgreen)](https://doi.org/10.1134/S1064562423701223)
 
 The Eco4cast is licensed under a [Apache licence 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
